@@ -50,6 +50,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithGoogle()
+      router.push("https://business-analytics-zeta.vercel.app/dashboard")
       setLoginSuccess(true)
       loginTypeRef.current = "google"
     } catch (error) {
