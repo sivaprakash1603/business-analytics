@@ -1,9 +1,11 @@
 import { connectToDatabase } from "@/lib/mongo";
-export async function GET() {
+export async function GET(req) {
   try {
+    const { searchParams } = new URL(req.url)
+    const userId = searchParams.get("userId")
     const db = await connectToDatabase();
     const clients = db.collection('clients');
-    const allClients = await clients.find({}).toArray();
+    const allClients = await clients.find({ userId }).toArray();
     return NextResponse.json({ clients: allClients });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });

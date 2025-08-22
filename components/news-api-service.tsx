@@ -24,7 +24,7 @@ export class NewsApiService {
       }
 
       const query = companyName
-        ? `${companyName} OR business analytics OR financial technology`
+        ? `apple`
         : "business analytics OR financial technology OR small business"
 
       const response = await fetch(

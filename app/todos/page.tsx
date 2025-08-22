@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
+import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, Calendar, Clock, CheckCircle, Trash2, AlertCircle } from "lucide-react"
 import {
@@ -39,20 +40,28 @@ export default function TodosPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Load data from localStorage
-  useEffect(() => {
-    const savedTodos = localStorage.getItem("todos")
-    if (savedTodos) {
-      setTodos(JSON.parse(savedTodos))
+
+  const { user } = useAuth()
+
+  // Fetch todos from DB
+  async function fetchTodosFromDB() {
+    if (!user?.uid) return setTodos([])
+    try {
+      const res = await fetch("/api/todos?userId=" + user.uid)
+      const data = await res.json()
+      if (res.ok && data.entries) {
+        setTodos(data.entries.map((todo: any) => ({ ...todo, id: todo._id })))
+      } else setTodos([])
+    } catch {
+      setTodos([])
     }
-  }, [])
+  }
 
-  // Save data to localStorage
   useEffect(() => {
-    localStorage.setItem("todos", JSON.stringify(todos))
-  }, [todos])
+    if (user?.uid) fetchTodosFromDB()
+  }, [user?.uid])
 
-  const addTodo = () => {
+  const addTodo = async () => {
     if (!todoTitle || !todoDueDate || !todoDueTime) {
       toast({
         title: "Error",
@@ -61,47 +70,116 @@ export default function TodosPage() {
       })
       return
     }
-
-    const newTodo: Todo = {
-      id: Date.now().toString(),
-      title: todoTitle,
-      description: todoDescription,
-      dueDate: todoDueDate,
-      dueTime: todoDueTime,
-      completed: false,
-      createdAt: new Date().toISOString(),
+    if (!user?.uid) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to add a todo.",
+        variant: "destructive",
+      })
+      return
     }
-
-    setTodos([...todos, newTodo])
-    setTodoTitle("")
-    setTodoDescription("")
-    setTodoDueDate("")
-    setTodoDueTime("")
-    setIsDialogOpen(false)
-
-    toast({
-      title: "Success",
-      description: "Todo added successfully!",
-    })
+    try {
+      const res = await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: todoTitle,
+          description: todoDescription,
+          dueDate: todoDueDate,
+          dueTime: todoDueTime,
+          completed: false,
+          createdAt: new Date().toISOString(),
+          userId: user.uid,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to store todo.",
+          variant: "destructive",
+        })
+        return
+      }
+      setTodoTitle("")
+      setTodoDescription("")
+      setTodoDueDate("")
+      setTodoDueTime("")
+      setIsDialogOpen(false)
+      toast({
+        title: "Success",
+        description: "Todo added successfully!",
+      })
+      fetchTodosFromDB()
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to store todo.",
+        variant: "destructive",
+      })
+    }
   }
 
-  const toggleTodo = (id: string) => {
-    setTodos(todos.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)))
-
+  const toggleTodo = async (id: string) => {
     const todo = todos.find((t) => t.id === id)
-    toast({
-      title: "Success",
-      description: `Todo ${todo?.completed ? "unmarked" : "completed"}!`,
-    })
+    if (!todo) return
+    try {
+      const res = await fetch("/api/todos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, completed: !todo.completed }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to update todo.",
+          variant: "destructive",
+        })
+        return
+      }
+      toast({
+        title: "Success",
+        description: `Todo ${todo.completed ? "unmarked" : "completed"}!`,
+      })
+      fetchTodosFromDB()
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update todo.",
+        variant: "destructive",
+      })
+    }
   }
 
-  const deleteTodo = (id: string) => {
-    setTodos(todos.filter((todo) => todo.id !== id))
-
-    toast({
-      title: "Success",
-      description: "Todo deleted successfully!",
-    })
+  const deleteTodo = async (id: string) => {
+    try {
+      const res = await fetch("/api/todos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to delete todo.",
+          variant: "destructive",
+        })
+        return
+      }
+      toast({
+        title: "Success",
+        description: "Todo deleted successfully!",
+      })
+      fetchTodosFromDB()
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to delete todo.",
+        variant: "destructive",
+      })
+    }
   }
 
   const isOverdue = (dueDate: string, dueTime: string) => {

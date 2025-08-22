@@ -51,7 +51,7 @@ function ClientsPage() {
     async function fetchClientsAndIncome() {
       try {
         const [clientsRes, incomeRes] = await Promise.all([
-          fetch("/api/clients"),
+          fetch("/api/clients?userId=" + user?.uid),
           fetch("/api/income?userId=" + user?.uid)
         ])
         const clientsData = await clientsRes.json()
@@ -79,7 +79,7 @@ function ClientsPage() {
   const refreshClients = async () => {
     try {
       const [clientsRes, incomeRes] = await Promise.all([
-        fetch("/api/clients"),
+        fetch("/api/clients?userId="+user?.uid),
         fetch("/api/income?userId=" + user?.uid)
       ])
       const clientsData = await clientsRes.json()

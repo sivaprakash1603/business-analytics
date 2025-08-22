@@ -11,9 +11,9 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
 import { useState, useEffect } from "react"
 // Load clients from localStorage for suggestions
-async function fetchClientsFromDB() {
+async function fetchClientsFromDB(userId: string) {
   try {
-    const res = await fetch("/api/clients")
+    const res = await fetch(`/api/clients?userId=${encodeURIComponent(userId)}`)
     const data = await res.json()
     if (res.ok && data.clients) return data.clients
     return []
@@ -68,11 +68,11 @@ export default function DashboardPage() {
   useEffect(() => {
     let ignore = false
     async function updateSuggestions() {
-      if (incomeSource.trim() === "") {
+      if (incomeSource.trim() === "" || !user?.uid) {
         setClientSuggestions([])
         return
       }
-      const allClients = await fetchClientsFromDB()
+      const allClients = await fetchClientsFromDB(user.uid)
       if (ignore) return
       const filtered = allClients.filter(
         (client: { clientId: string; name: string; company: string }) =>
@@ -83,7 +83,7 @@ export default function DashboardPage() {
     }
     updateSuggestions()
     return () => { ignore = true }
-  }, [incomeSource])
+  }, [incomeSource, user?.uid])
 
   // State for spending
   const [spendingEntries, setSpendingEntries] = useState<SpendingEntry[]>([])
@@ -96,7 +96,8 @@ export default function DashboardPage() {
   const [loanDescription, setLoanDescription] = useState("")
 
   // State for filters
-  const [timeFilter, setTimeFilter] = useState("1month")
+  const [timeFilter, setTimeFilter] = useState("1month") // options: 1month, 6months, 1year, 5years, 10years, weekly
+  const [timeUnit, setTimeUnit] = useState("month") // options: day, week, month
   const [sourceFilter, setSourceFilter] = useState("all")
   const [reasonFilter, setReasonFilter] = useState("all")
 
@@ -454,6 +455,10 @@ export default function DashboardPage() {
     const startDate = new Date()
 
     switch (timeFilter) {
+      case "weekly":
+        // Show last 4 weeks
+        startDate.setDate(now.getDate() - 7 * 4)
+        break
       case "1month":
         startDate.setMonth(now.getMonth() - 1)
         break
@@ -484,36 +489,156 @@ export default function DashboardPage() {
     return { filteredIncome, filteredSpending }
   }
 
-  // Prepare chart data
+  // Prepare chart data based on selected time unit
   const getChartData = () => {
     const { filteredIncome, filteredSpending } = getFilteredData()
+    
+    console.log(`Grouping data by: ${timeUnit}`)
+    console.log("Filtered income entries:", filteredIncome.length)
+    console.log("Filtered spending entries:", filteredSpending.length)
 
-    // Group by month
-    const monthlyData: { [key: string]: { income: number; spending: number } } = {}
-
-    filteredIncome.forEach((entry) => {
-      const month = new Date(entry.date).toLocaleDateString("en-US", { year: "numeric", month: "short" })
-      if (!monthlyData[month]) monthlyData[month] = { income: 0, spending: 0 }
-      monthlyData[month].income += entry.amount
-    })
-
-    filteredSpending.forEach((entry) => {
-      const month = new Date(entry.date).toLocaleDateString("en-US", { year: "numeric", month: "short" })
-      if (!monthlyData[month]) monthlyData[month] = { income: 0, spending: 0 }
-      monthlyData[month].spending += entry.amount
-    })
-
-    return Object.entries(monthlyData)
-      .map(([month, data]) => ({
-        month,
-        income: data.income,
-        spending: data.spending,
-        profit: data.income - data.spending,
-      }))
-      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
+    if (timeUnit === "day") {
+      // Group by day
+      const dailyData: { [key: string]: { income: number; spending: number; date: Date } } = {}
+      
+      // Generate all days in the time period
+      const now = new Date()
+      const startDate = new Date()
+      
+      switch (timeFilter) {
+        case "weekly":
+          startDate.setDate(now.getDate() - 7 * 4)
+          break
+        case "1month":
+          startDate.setMonth(now.getMonth() - 1)
+          break
+        default:
+          startDate.setDate(now.getDate() - 30) // Default to 30 days for daily view
+      }
+      
+      for (let d = new Date(startDate); d <= now; d.setDate(d.getDate() + 1)) {
+        const dayLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        dailyData[dayLabel] = { income: 0, spending: 0, date: new Date(d) }
+      }
+      
+      // Add actual data
+      filteredIncome.forEach((entry) => {
+        const dayLabel = new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        if (dailyData[dayLabel]) {
+          dailyData[dayLabel].income += entry.amount
+        }
+      })
+      
+      filteredSpending.forEach((entry) => {
+        const dayLabel = new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        if (dailyData[dayLabel]) {
+          dailyData[dayLabel].spending += entry.amount
+        }
+      })
+      
+      return Object.entries(dailyData)
+        .map(([day, data]) => ({
+          period: day,
+          income: data.income,
+          spending: data.spending,
+          profit: data.income - data.spending,
+        }))
+        .sort((a, b) => dailyData[a.period].date.getTime() - dailyData[b.period].date.getTime())
+        
+    } else if (timeUnit === "week") {
+      // Group by week
+      const weekData: { [key: string]: { income: number; spending: number; weekStart: Date } } = {}
+      
+      // Generate weeks based on time filter
+      const today = new Date()
+      let weeksToShow = 4
+      
+      switch (timeFilter) {
+        case "1month":
+          weeksToShow = 4
+          break
+        case "6months":
+          weeksToShow = 26
+          break
+        case "1year":
+          weeksToShow = 52
+          break
+        default:
+          weeksToShow = 4
+      }
+      
+      for (let i = weeksToShow - 1; i >= 0; i--) {
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - today.getDay() - (i * 7))
+        const weekLabel = `Week ${weekStart.getMonth() + 1}/${weekStart.getDate()}`
+        weekData[weekLabel] = { 
+          income: 0, 
+          spending: 0, 
+          weekStart: new Date(weekStart) 
+        }
+      }
+      
+      // Add actual data
+      filteredIncome.forEach((entry) => {
+        const d = new Date(entry.date)
+        const weekStart = new Date(d)
+        weekStart.setDate(d.getDate() - d.getDay())
+        const weekLabel = `Week ${weekStart.getMonth() + 1}/${weekStart.getDate()}`
+        if (weekData[weekLabel]) {
+          weekData[weekLabel].income += entry.amount
+        }
+      })
+      
+      filteredSpending.forEach((entry) => {
+        const d = new Date(entry.date)
+        const weekStart = new Date(d)
+        weekStart.setDate(d.getDate() - d.getDay())
+        const weekLabel = `Week ${weekStart.getMonth() + 1}/${weekStart.getDate()}`
+        if (weekData[weekLabel]) {
+          weekData[weekLabel].spending += entry.amount
+        }
+      })
+      
+      return Object.entries(weekData)
+        .map(([week, data]) => ({
+          period: week,
+          income: data.income,
+          spending: data.spending,
+          profit: data.income - data.spending,
+        }))
+        .sort((a, b) => weekData[a.period].weekStart.getTime() - weekData[b.period].weekStart.getTime())
+        
+    } else {
+      // Group by month (default)
+      const monthlyData: { [key: string]: { income: number; spending: number } } = {}
+      
+      filteredIncome.forEach((entry) => {
+        const month = new Date(entry.date).toLocaleDateString("en-US", { year: "numeric", month: "short" })
+        if (!monthlyData[month]) monthlyData[month] = { income: 0, spending: 0 }
+        monthlyData[month].income += entry.amount
+      })
+      
+      filteredSpending.forEach((entry) => {
+        const month = new Date(entry.date).toLocaleDateString("en-US", { year: "numeric", month: "short" })
+        if (!monthlyData[month]) monthlyData[month] = { income: 0, spending: 0 }
+        monthlyData[month].spending += entry.amount
+      })
+      
+      return Object.entries(monthlyData)
+        .map(([month, data]) => ({
+          period: month,
+          income: data.income,
+          spending: data.spending,
+          profit: data.income - data.spending,
+        }))
+        .sort((a, b) => new Date(a.period).getTime() - new Date(b.period).getTime())
+    }
   }
 
   const chartData = getChartData()
+  
+  // Debug logging for chart data
+  console.log(`Chart data for ${timeUnit} view:`, chartData)
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -694,11 +819,26 @@ export default function DashboardPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
                             <SelectItem value="1month">Last Month</SelectItem>
                             <SelectItem value="6months">Last 6 Months</SelectItem>
                             <SelectItem value="1year">Last Year</SelectItem>
                             <SelectItem value="5years">Last 5 Years</SelectItem>
                             <SelectItem value="10years">Last 10 Years</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>View By</Label>
+                        <Select value={timeUnit} onValueChange={setTimeUnit}>
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="day">Day by Day</SelectItem>
+                            <SelectItem value="week">Week by Week</SelectItem>
+                            <SelectItem value="month">Month by Month</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -759,7 +899,7 @@ export default function DashboardPage() {
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
-                              <XAxis dataKey="month" stroke="#6b7280" fontSize={12} />
+                              <XAxis dataKey="period" stroke="#6b7280" fontSize={12} />
                               <YAxis stroke="#6b7280" fontSize={12} tickFormatter={(value) => `$${value}`} />
                               <Tooltip
                                 formatter={(value, name) => [`$${Number(value).toLocaleString()}`, name]}

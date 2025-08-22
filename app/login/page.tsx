@@ -50,7 +50,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithGoogle()
-      router.push("https://business-analytics-zeta.vercel.app/dashboard")
+      router.push("/dashboard")
       setLoginSuccess(true)
       loginTypeRef.current = "google"
     } catch (error) {
@@ -105,7 +105,7 @@ export default function LoginPage() {
   // Show three-dot loading animation until auth state is loaded
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center gradient-bg">
+      <div className="min-h-screen flex items-center justify-center gradient-bg w-18">
           <span className="block w-3 h-3 bg-white rounded-full animate-bounce bounce-delay-0"></span>
           <span className="block w-3 h-3 bg-white rounded-full animate-bounce bounce-delay-200"></span>
           <span className="block w-3 h-3 bg-white rounded-full animate-bounce bounce-delay-400"></span>
