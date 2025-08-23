@@ -6,7 +6,7 @@ import { MongoClient } from 'mongodb';
 
 const MONGO_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB || 'business-analytics';
-const EMAIL_API = process.env.EMAIL_API_URL || 'http://localhost:3000/api/send-email';
+const EMAIL_API = process.env.EMAIL_API_URL ;
 
 
 
