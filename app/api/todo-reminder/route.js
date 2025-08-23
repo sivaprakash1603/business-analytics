@@ -8,22 +8,22 @@ const MONGO_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB || 'business-analytics';
 const EMAIL_API ='/api/send-email';
 
-async function getTodos() {
+
+async function getTodosAndUsers() {
   const client = new MongoClient(MONGO_URI);
   await client.connect();
   const db = client.db(DB_NAME);
   const todos = await db.collection('todos').find({ completed: false }).toArray();
+  const users = await db.collection('users').find({}).toArray();
   await client.close();
-  return todos;
-}
-
-async function getUserEmail(userId) {
-  const client = new MongoClient(MONGO_URI);
-  await client.connect();
-  const db = client.db(DB_NAME);
-  const user = await db.collection('users').findOne({ uid: userId });
-  await client.close();
-  return user?.email;
+  // Map userId to email for quick lookup
+  const userEmailMap = {};
+  users.forEach(user => {
+    if (user.uid && user.email) {
+      userEmailMap[user.uid] = user.email;
+    }
+  });
+  return { todos, userEmailMap };
 }
 
 async function sendReminderEmail(to, subject, message) {
@@ -42,34 +42,31 @@ function shouldSendReminder(dueDate, dueTime, offsetMs) {
   return reminderTime > new Date(now.getTime() - 15 * 60 * 1000) && reminderTime <= now;
 }
 
+
 export async function GET(req) {
-  // Authorization check for Vercel Cron
+  // Authorization check for Vercel Cron or GitHub Actions
   if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
-  const todos = await getTodos();
+  const { todos, userEmailMap } = await getTodosAndUsers();
   for (const todo of todos) {
+    const email = userEmailMap[todo.userId];
+    if (!email) continue;
     // 1 day before
     if (shouldSendReminder(todo.dueDate, todo.dueTime, 24 * 60 * 60 * 1000)) {
-      const email = await getUserEmail(todo.userId);
-      if (email) {
-        await sendReminderEmail(
-          email,
-          `Reminder: '${todo.title}' is due in 1 day`,
-          `Your task '${todo.title}' is due on ${todo.dueDate} at ${todo.dueTime}.`
-        );
-      }
+      await sendReminderEmail(
+        email,
+        `Reminder: '${todo.title}' is due in 1 day`,
+        `Your task '${todo.title}' is due on ${todo.dueDate} at ${todo.dueTime}.`
+      );
     }
     // 1 hour before
     if (shouldSendReminder(todo.dueDate, todo.dueTime, 60 * 60 * 1000)) {
-      const email = await getUserEmail(todo.userId);
-      if (email) {
-        await sendReminderEmail(
-          email,
-          `Reminder: '${todo.title}' is due in 1 hour`,
-          `Your task '${todo.title}' is due on ${todo.dueDate} at ${todo.dueTime}.`
-        );
-      }
+      await sendReminderEmail(
+        email,
+        `Reminder: '${todo.title}' is due in 1 hour`,
+        `Your task '${todo.title}' is due on ${todo.dueDate} at ${todo.dueTime}.`
+      );
     }
   }
   return new Response(JSON.stringify({ success: true }), { status: 200 });
