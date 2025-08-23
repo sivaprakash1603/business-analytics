@@ -52,6 +52,7 @@ interface LoanEntry {
 export default function DashboardPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const [companyName, setCompanyName] = useState("")
 
   // Add the news state and loading state at the top with other state declarations
   const [newsArticles, setNewsArticles] = useState<any[]>([])
@@ -164,6 +165,18 @@ export default function DashboardPage() {
 
     return () => clearTimeout(timer)
   }, [])
+  
+  //Add this function to fetch company name
+  const fetchCompanyName = async () => {
+    try {
+      const res = await fetch("/api/users/getcompany?userId=" + user?.uid)
+      const data = await res.json()
+      if (res.ok && data.companyName) setCompanyName(data.companyName)
+      else setCompanyName("")
+    } catch {
+      setCompanyName("")
+    }
+  }
 
   // Add this function to fetch news
   const fetchNews = async () => {
@@ -221,6 +234,13 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchNews()
   }, [])
+
+  // Only fetch company name when user?.uid is available
+  useEffect(() => {
+    if (user?.uid) {
+      fetchCompanyName()
+    }
+  }, [user?.uid])
 
   const addIncome = async () => {
     if (!incomeSource || !incomeAmount) {
@@ -674,7 +694,7 @@ export default function DashboardPage() {
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
               >
-                Welcome back, {user?.companyName}!
+                    Welcome back, {companyName}!
               </motion.h1>
               <motion.p
                 className="text-white/90 text-lg"
