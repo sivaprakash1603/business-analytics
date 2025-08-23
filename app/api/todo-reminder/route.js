@@ -6,7 +6,8 @@ import { MongoClient } from 'mongodb';
 
 const MONGO_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB || 'business-analytics';
-const EMAIL_API ='/api/send-email';
+const EMAIL_API = process.env.EMAIL_API_URL || 'http://localhost:3000/api/send-email';
+
 
 
 async function getTodosAndUsers() {
@@ -14,19 +15,22 @@ async function getTodosAndUsers() {
   await client.connect();
   const db = client.db(DB_NAME);
   const todos = await db.collection('todos').find({ completed: false }).toArray();
-  const users = await db.collection('users').find({}).toArray();
+  const users = await db.collection('user').find({}).toArray();
   await client.close();
-  // Map userId to email for quick lookup
+  // Map supabaseId to email for quick lookup
   const userEmailMap = {};
   users.forEach(user => {
-    if (user.uid && user.email) {
-      userEmailMap[user.uid] = user.email;
+    if (user.supabaseId && user.email) {
+      userEmailMap[user.supabaseId] = user.email;
     }
   });
+  console.log(`[DEBUG] Fetched ${todos.length} todos and ${users.length} users.`);
   return { todos, userEmailMap };
 }
 
+
 async function sendReminderEmail(to, subject, message) {
+  console.log(`[DEBUG] Sending email to: ${to}, subject: ${subject}`);
   await fetch(EMAIL_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -43,17 +47,24 @@ function shouldSendReminder(dueDate, dueTime, offsetMs) {
 }
 
 
+
 export async function GET(req) {
+  console.log('[DEBUG] /api/todo-reminder called');
   // Authorization check for Vercel Cron or GitHub Actions
   if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.log('[DEBUG] Unauthorized request');
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
   const { todos, userEmailMap } = await getTodosAndUsers();
   for (const todo of todos) {
     const email = userEmailMap[todo.userId];
-    if (!email) continue;
+    if (!email) {
+      console.log(`[DEBUG] No email found for userId: ${todo.userId}`);
+      continue;
+    }
     // 1 day before
     if (shouldSendReminder(todo.dueDate, todo.dueTime, 24 * 60 * 60 * 1000)) {
+      console.log(`[DEBUG] Sending 1 day reminder for todo: ${todo.title} to ${email}`);
       await sendReminderEmail(
         email,
         `Reminder: '${todo.title}' is due in 1 day`,
@@ -62,6 +73,7 @@ export async function GET(req) {
     }
     // 1 hour before
     if (shouldSendReminder(todo.dueDate, todo.dueTime, 60 * 60 * 1000)) {
+      console.log(`[DEBUG] Sending 1 hour reminder for todo: ${todo.title} to ${email}`);
       await sendReminderEmail(
         email,
         `Reminder: '${todo.title}' is due in 1 hour`,
@@ -69,5 +81,6 @@ export async function GET(req) {
       );
     }
   }
+  console.log('[DEBUG] Reminder job finished');
   return new Response(JSON.stringify({ success: true }), { status: 200 });
 }

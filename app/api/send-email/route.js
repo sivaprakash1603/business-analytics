@@ -10,7 +10,7 @@ export async function POST(req) {
 
     // Create Gmail transporter
     // You'll need to set these environment variables
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER, // Your Gmail address
