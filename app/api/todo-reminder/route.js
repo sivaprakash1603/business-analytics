@@ -57,13 +57,23 @@ export async function GET(req) {
   }
   const { todos, userEmailMap } = await getTodosAndUsers();
   for (const todo of todos) {
+    console.log(`[DEBUG] Checking todo:`, {
+      id: todo._id,
+      title: todo.title,
+      dueDate: todo.dueDate,
+      dueTime: todo.dueTime,
+      userId: todo.userId
+    });
     const email = userEmailMap[todo.userId];
     if (!email) {
       console.log(`[DEBUG] No email found for userId: ${todo.userId}`);
       continue;
     }
+    const oneDay = shouldSendReminder(todo.dueDate, todo.dueTime, 24 * 60 * 60 * 1000);
+    const oneHour = shouldSendReminder(todo.dueDate, todo.dueTime, 60 * 60 * 1000);
+    console.log(`[DEBUG] Reminder checks for todo '${todo.title}': 1 day=${oneDay}, 1 hour=${oneHour}`);
     // 1 day before
-    if (shouldSendReminder(todo.dueDate, todo.dueTime, 24 * 60 * 60 * 1000)) {
+    if (oneDay) {
       console.log(`[DEBUG] Sending 1 day reminder for todo: ${todo.title} to ${email}`);
       await sendReminderEmail(
         email,
@@ -72,7 +82,7 @@ export async function GET(req) {
       );
     }
     // 1 hour before
-    if (shouldSendReminder(todo.dueDate, todo.dueTime, 60 * 60 * 1000)) {
+    if (oneHour) {
       console.log(`[DEBUG] Sending 1 hour reminder for todo: ${todo.title} to ${email}`);
       await sendReminderEmail(
         email,
