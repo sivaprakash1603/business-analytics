@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer'
 export async function POST(req) {
   try {
     const { to, subject, html, text } = await req.json()
-    
+
     if (!to || !subject || (!html && !text)) {
       return new Response(JSON.stringify({ error: "Missing required fields: to, subject, and (html or text)" }), { status: 400 })
     }
@@ -27,18 +27,18 @@ export async function POST(req) {
     }
 
     const result = await transporter.sendMail(mailOptions)
-    
-    return new Response(JSON.stringify({ 
-      success: true, 
+
+    return new Response(JSON.stringify({
+      success: true,
       messageId: result.messageId,
-      message: "Email sent successfully" 
+      message: "Email sent successfully"
     }), { status: 200 })
 
   } catch (err) {
     console.error("[API][Send-Email][POST] Error:", err)
-    return new Response(JSON.stringify({ 
-      error: "Failed to send email", 
-      details: err.message 
+    return new Response(JSON.stringify({
+      error: "Failed to send email",
+      details: err.message
     }), { status: 500 })
   }
 }
