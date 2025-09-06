@@ -636,7 +636,7 @@ Ask me anything about your business - I have access to advanced analytics includ
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-lg p-6 text-gray-900 dark:text-white border border-white/20 dark:border-gray-700/20 shadow-xl">
+        <div className="backdrop-blur-md rounded-lg p-6 text-gray-900 dark:text-white border-white/20 dark:border-gray-700/20 shadow-xl bg-gradient-to-br from-white/90 to-white/50 dark:from-gray-900/90 dark:to-gray-900/50">
           <div className="flex items-center gap-3 mb-2">
             <Brain className="h-8 w-8" />
             <h1 className="text-2xl font-bold">AI Business Insights</h1>
@@ -893,7 +893,7 @@ Ask me anything about your business - I have access to advanced analytics includ
                   <Button
                     key={index}
                     variant="outline"
-                    className="text-left h-auto p-3 text-sm whitespace-normal"
+                    className="text-left h-auto p-3 text-sm whitespace-normal  backdrop-blur-lg "
                     onClick={() => {
                       setInputMessage(question);
                       // Auto-send the message

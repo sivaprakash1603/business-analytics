@@ -76,6 +76,17 @@ const config: Config = {
     },
   },
   plugins: [require("tailwindcss-animate")],
+  safelist: [
+    // Hover gradient classes for MagazineCard
+    'group-hover:from-green-500',
+    'group-hover:to-emerald-500',
+    'group-hover:from-red-500',
+    'group-hover:to-pink-500',
+    'group-hover:from-blue-500',
+    'group-hover:to-cyan-500',
+    'group-hover:from-orange-500',
+    'group-hover:to-red-500',
+  ],
 } satisfies Config
 
 export default config

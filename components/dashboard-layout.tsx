@@ -266,61 +266,50 @@ export default function DashboardLayout({
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
                 >
-                  <TooltipProvider delayDuration={100} skipDelayDuration={0}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            "group flex items-center px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden",
-                            isActive
-                              ? `bg-gradient-to-r ${item.color} text-white shadow-lg shadow-${item.color}/25`
-                              : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-white/5 hover:to-white/10 backdrop-blur-sm",
-                            isHovered ? "justify-start" : "justify-center"
-                          )}
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "group flex items-center px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden",
+                      isActive
+                        ? `bg-gradient-to-r ${item.color} text-white shadow-lg shadow-${item.color}/25`
+                        : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-white/5 hover:to-white/10 backdrop-blur-sm",
+                      isHovered ? "justify-start" : "justify-center"
+                    )}
+                  >
+                    {/* Background glow effect */}
+                    <div className={cn(
+                      "absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-300",
+                      `bg-gradient-to-r ${item.color}`
+                    )} />
+
+                    <motion.div
+                      className="relative z-10 p-2 rounded-lg bg-white/10 group-hover:bg-white/20 transition-colors duration-300"
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </motion.div>
+
+                    <AnimatePresence>
+                      {isHovered && (
+                        <motion.div
+                          className="relative z-10 ml-3 overflow-hidden"
+                          initial={{ width: 0, opacity: 0 }}
+                          animate={{ width: "auto", opacity: 1 }}
+                          exit={{ width: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
                         >
-                          {/* Background glow effect */}
-                          <div className={cn(
-                            "absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-300",
-                            `bg-gradient-to-r ${item.color}`
-                          )} />
-
-                          <motion.div
-                            className="relative z-10 p-2 rounded-lg bg-white/10 group-hover:bg-white/20 transition-colors duration-300"
-                            whileHover={{ scale: 1.1, rotate: 5 }}
-                            whileTap={{ scale: 0.95 }}
-                          >
-                            <Icon className="h-5 w-5" />
-                          </motion.div>
-
-                          <AnimatePresence>
-                            {isHovered && (
-                              <motion.div
-                                className="relative z-10 ml-3 overflow-hidden"
-                                initial={{ width: 0, opacity: 0 }}
-                                animate={{ width: "auto", opacity: 1 }}
-                                exit={{ width: 0, opacity: 0 }}
-                                transition={{ duration: 0.3 }}
-                              >
-                                <span className="font-semibold whitespace-nowrap">{item.name}</span>
-                                {isActive && (
-                                  <motion.div
-                                    className="w-full h-0.5 bg-white rounded-full mt-1"
-                                    layoutId="activeIndicatorDesktop"
-                                  />
-                                )}
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </Link>
-                      </TooltipTrigger>
-                      {!isHovered && (
-                        <TooltipContent side="right">
-                          <p>{item.name}</p>
-                        </TooltipContent>
+                          <span className="font-semibold whitespace-nowrap">{item.name}</span>
+                          {isActive && (
+                            <motion.div
+                              className="w-full h-0.5 bg-white rounded-full mt-1"
+                              layoutId="activeIndicatorDesktop"
+                            />
+                          )}
+                        </motion.div>
                       )}
-                    </Tooltip>
-                  </TooltipProvider>
+                    </AnimatePresence>
+                  </Link>
                 </motion.div>
               )
             })}
@@ -331,28 +320,17 @@ export default function DashboardLayout({
             animate={{ opacity: isHovered ? 1 : 0.7 }}
             transition={{ duration: 0.3 }}
           >
-            <TooltipProvider delayDuration={100} skipDelayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    onClick={handleSignOut}
-                    className={cn(
-                      "w-full text-muted-foreground hover:text-foreground hover:bg-red-500/10 group transition-all duration-300",
-                      isHovered ? "justify-start" : "justify-center"
-                    )}
-                  >
-                    <LogOut className="h-4 w-4 group-hover:text-red-500" />
-                    {isHovered && <span className="ml-3">Sign Out</span>}
-                  </Button>
-                </TooltipTrigger>
-                {!isHovered && (
-                  <TooltipContent side="right">
-                    <p>Sign Out</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
+            <Button
+              variant="ghost"
+              onClick={handleSignOut}
+              className={cn(
+                "w-full text-muted-foreground hover:text-foreground hover:bg-red-500/10 group transition-all duration-300",
+                isHovered ? "justify-start" : "justify-center"
+              )}
+            >
+              <LogOut className="h-4 w-4 group-hover:text-red-500" />
+              {isHovered && <span className="ml-3">Sign Out</span>}
+            </Button>
           </motion.div>
         </div>
       </motion.div>

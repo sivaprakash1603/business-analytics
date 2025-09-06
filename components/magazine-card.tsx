@@ -28,6 +28,8 @@ export function MagazineCard({
   children,
   className = ""
 }: MagazineCardProps) {
+  // Parse gradient for hover effect
+  const hoverClasses = gradient.split(' ').map(cls => `group-hover:${cls}`).join(' ')
   return (
     <motion.div
       initial={{ opacity: 0, y: 50, scale: 0.9 }}
@@ -83,7 +85,7 @@ export function MagazineCard({
 
         <CardContent className="relative z-10">
           {value !== undefined && value !== null && (
-            <div className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2">
+            <div className={`text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2 ${hoverClasses}`}>
               {value}
             </div>
           )}
