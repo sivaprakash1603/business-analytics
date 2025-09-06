@@ -277,7 +277,7 @@ export function DownloadReportDialog({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button className="gradient-bg text-white" size="lg">
+        <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg" size="lg">
           <Download className="h-4 w-4 mr-2" />
           Download Report
         </Button>
@@ -373,7 +373,7 @@ export function DownloadReportDialog({
 
           {/* Generate Button */}
           <div className="flex space-x-2">
-            <Button onClick={generatePDF} disabled={isGenerating} className="flex-1 gradient-bg text-white">
+            <Button onClick={generatePDF} disabled={isGenerating} className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg">
               {isGenerating ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

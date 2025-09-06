@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Calendar, Clock, CheckCircle, Trash2, AlertCircle } from "lucide-react"
+import { Plus, Calendar, Clock, CheckCircle, Trash2, AlertCircle, CheckSquare, Target, TrendingUp } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { motion } from "framer-motion"
+import { MagazineCard } from "@/components/magazine-card"
+import { FloatingElements } from "@/components/floating-elements"
 
 interface Todo {
   id: string
@@ -211,209 +214,350 @@ export default function TodosPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Todo List</h1>
-            <p className="text-muted-foreground">Manage your tasks and stay organized</p>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-bg text-white">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Todo
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Todo</DialogTitle>
-                <DialogDescription>Create a new task with a due date and time.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="todoTitle">Title *</Label>
-                  <Input
-                    id="todoTitle"
-                    placeholder="Enter todo title"
-                    value={todoTitle}
-                    onChange={(e) => setTodoTitle(e.target.value)}
-                  />
+      <div className="relative min-h-screen">
+        <FloatingElements />
+
+        {/* Hero Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="relative z-10"
+        >
+          <div className="glow-card backdrop-blur rounded-lg p-8 text-gray-900 dark:text-white mb-8 overflow-hidden relative border border-white/20 dark:border-gray-700/20 shadow-xl">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20"></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <motion.h1
+                    className="text-4xl font-bold mb-3 flex items-center gap-4"
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.6, delay: 0.2 }}
+                  >
+                    <CheckSquare className="h-10 w-10" />
+                    Task Management Hub
+                  </motion.h1>
+                  <motion.p
+                    className="text-gray-700 dark:text-gray-300 text-lg max-w-2xl"
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.6, delay: 0.3 }}
+                  >
+                    Stay organized and productive with intelligent task management.
+                    Track deadlines, prioritize work, and achieve your goals efficiently.
+                  </motion.p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="todoDescription">Description</Label>
-                  <Textarea
-                    id="todoDescription"
-                    placeholder="Enter todo description (optional)"
-                    value={todoDescription}
-                    onChange={(e) => setTodoDescription(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="todoDueDate">Due Date *</Label>
-                    <Input
-                      id="todoDueDate"
-                      type="date"
-                      value={todoDueDate}
-                      onChange={(e) => setTodoDueDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="todoDueTime">Due Time *</Label>
-                    <Input
-                      id="todoDueTime"
-                      type="time"
-                      value={todoDueTime}
-                      onChange={(e) => setTodoDueTime(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex space-x-2">
-                  <Button onClick={addTodo} className="flex-1 gradient-bg text-white">
-                    Add Todo
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
-                    Cancel
-                  </Button>
-                </div>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.4 }}
+                >
+                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 px-6 py-3 text-lg shadow-lg">
+                        <Plus className="h-5 w-5 mr-2" />
+                        Create Task
+                      </Button>
+                    </DialogTrigger>
+                  </Dialog>
+                </motion.div>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+            </div>
+          </div>
+        </motion.div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
-              <CheckCircle className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{todos.length}</div>
-            </CardContent>
-          </Card>
+        <div className="mb-8">
+          <div className="flex flex-col lg:flex-row gap-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              viewport={{ once: true }}
+              className="flex-1"
+            >
+              <MagazineCard
+                title="Total Tasks"
+                value={todos.length}
+                description="All tasks in your system"
+                icon={CheckSquare}
+                gradient="from-blue-500 to-cyan-500"
+                className="hover:scale-105 transition-all duration-300 h-full"
+              />
+            </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{completedCount}</div>
-            </CardContent>
-          </Card>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="flex-1"
+            >
+              <MagazineCard
+                title="Completed"
+                value={completedCount}
+                description="Tasks successfully finished"
+                icon={CheckCircle}
+                gradient="from-green-500 to-emerald-500"
+                className="hover:scale-105 transition-all duration-300 h-full"
+              />
+            </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Due Today</CardTitle>
-              <Calendar className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{dueTodayCount}</div>
-            </CardContent>
-          </Card>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              viewport={{ once: true }}
+              className="flex-1"
+            >
+              <MagazineCard
+                title="Due Today"
+                value={dueTodayCount}
+                description="Tasks requiring immediate attention"
+                icon={Calendar}
+                gradient="from-orange-500 to-red-500"
+                className="hover:scale-105 transition-all duration-300 h-full"
+              />
+            </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-              <AlertCircle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{overdueCount}</div>
-            </CardContent>
-          </Card>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              viewport={{ once: true }}
+              className="flex-1"
+            >
+              <MagazineCard
+                title="Overdue"
+                value={overdueCount}
+                description="Tasks past their deadline"
+                icon={AlertCircle}
+                gradient="from-red-500 to-pink-500"
+                className="hover:scale-105 transition-all duration-300 h-full"
+              />
+            </motion.div>
+          </div>
         </div>
 
-        {/* Todos List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>All Tasks</CardTitle>
-            <CardDescription>Manage your tasks and track progress</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {todos.length === 0 ? (
-              <div className="text-center py-12">
-                <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No tasks yet</h3>
-                <p className="text-muted-foreground mb-4">Start by adding your first task to stay organized.</p>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="gradient-bg text-white">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Your First Task
-                    </Button>
-                  </DialogTrigger>
-                </Dialog>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {sortedTodos.map((todo) => (
-                  <div
-                    key={todo.id}
-                    className={`flex items-start gap-3 p-4 border rounded-lg transition-colors ${
-                      todo.completed ? "bg-muted/50 opacity-75" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <Checkbox checked={todo.completed} onCheckedChange={() => toggleTodo(todo.id)} className="mt-1" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className={`font-medium ${todo.completed ? "line-through text-muted-foreground" : ""}`}>
-                          {todo.title}
-                        </h3>
-                        {!todo.completed && isOverdue(todo.dueDate, todo.dueTime) && (
-                          <Badge variant="destructive" className="text-xs">
-                            Overdue
-                          </Badge>
-                        )}
-                        {!todo.completed && isDueToday(todo.dueDate) && !isOverdue(todo.dueDate, todo.dueTime) && (
-                          <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
-                            Due Today
-                          </Badge>
-                        )}
-                        {todo.completed && (
-                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-                            Completed
-                          </Badge>
-                        )}
-                      </div>
-                      {todo.description && (
-                        <p
-                          className={`text-sm mb-2 ${todo.completed ? "text-muted-foreground" : "text-muted-foreground"}`}
-                        >
-                          {todo.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(todo.dueDate).toLocaleDateString()}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {new Date(`2000-01-01T${todo.dueTime}`).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteTodo(todo.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+        {/* Tasks List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          viewport={{ once: true }}
+        >
+            <Card className="glow-card backdrop-blur-sm border-0 shadow-2xl">
+              <CardHeader className="pb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-2xl font-bold flex items-center gap-3">
+                      <Target className="h-6 w-6 text-blue-600" />
+                      Your Tasks
+                    </CardTitle>
+                    <CardDescription className="text-lg">
+                      Manage and track all your business tasks and deadlines
+                    </CardDescription>
                   </div>
-                ))}
+                  <Badge variant="secondary" className="px-4 py-2 text-sm">
+                    {todos.length} Total Tasks
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {todos.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-center py-16"
+                  >
+                    <CheckCircle className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
+                    <h3 className="text-2xl font-semibold mb-3">No tasks yet</h3>
+                    <p className="text-muted-foreground text-lg mb-6 max-w-md mx-auto">
+                      Start building your productivity by creating your first task.
+                      Stay organized and achieve your business goals efficiently.
+                    </p>
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button className="gradient-bg text-white px-8 py-3 text-lg">
+                          <Plus className="h-5 w-5 mr-2" />
+                          Create Your First Task
+                        </Button>
+                      </DialogTrigger>
+                    </Dialog>
+                  </motion.div>
+                ) : (
+                  <div className="space-y-4">
+                    {sortedTodos.map((todo, index) => (
+                      <motion.div
+                        key={todo.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className={`group relative overflow-hidden p-6 border rounded-xl transition-all duration-300 ${
+                          todo.completed
+                            ? "bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800"
+                            : "bg-gradient-to-r from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 hover:shadow-lg border-gray-200 dark:border-gray-700"
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          <Checkbox
+                            checked={todo.completed}
+                            onCheckedChange={() => toggleTodo(todo.id)}
+                            className="mt-1 h-5 w-5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className={`text-lg font-semibold transition-colors ${
+                                todo.completed
+                                  ? "line-through text-muted-foreground"
+                                  : "group-hover:text-blue-600"
+                              }`}>
+                                {todo.title}
+                              </h3>
+                              {!todo.completed && isOverdue(todo.dueDate, todo.dueTime) && (
+                                <Badge variant="destructive" className="animate-pulse">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Overdue
+                                </Badge>
+                              )}
+                              {!todo.completed && isDueToday(todo.dueDate) && !isOverdue(todo.dueDate, todo.dueTime) && (
+                                <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Due Today
+                                </Badge>
+                              )}
+                              {todo.completed && (
+                                <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Completed
+                                </Badge>
+                              )}
+                            </div>
+                            {todo.description && (
+                              <p className={`text-sm mb-4 leading-relaxed ${
+                                todo.completed ? "text-muted-foreground" : "text-muted-foreground"
+                              }`}>
+                                {todo.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                <span className="font-medium">
+                                  {new Date(todo.dueDate).toLocaleDateString('en-US', {
+                                    weekday: 'short',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-4 w-4" />
+                                <span className="font-medium">
+                                  {new Date(`2000-01-01T${todo.dueTime}`).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteTodo(todo.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+        {/* Add Todo Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <Plus className="h-5 w-5" />
+                Create New Task
+              </DialogTitle>
+              <DialogDescription className="text-base">
+                Add a new task with specific deadlines and details to stay organized.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              <div className="space-y-3">
+                <Label htmlFor="todoTitle" className="text-sm font-medium">Task Title *</Label>
+                <Input
+                  id="todoTitle"
+                  placeholder="Enter a clear, actionable task title"
+                  value={todoTitle}
+                  onChange={(e) => setTodoTitle(e.target.value)}
+                  className="text-base"
+                />
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div className="space-y-3">
+                <Label htmlFor="todoDescription" className="text-sm font-medium">Description</Label>
+                <Textarea
+                  id="todoDescription"
+                  placeholder="Add details, context, or specific requirements..."
+                  value={todoDescription}
+                  onChange={(e) => setTodoDescription(e.target.value)}
+                  rows={4}
+                  className="text-base resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <Label htmlFor="todoDueDate" className="text-sm font-medium">Due Date *</Label>
+                  <Input
+                    id="todoDueDate"
+                    type="date"
+                    value={todoDueDate}
+                    onChange={(e) => setTodoDueDate(e.target.value)}
+                    className="text-base"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label htmlFor="todoDueTime" className="text-sm font-medium">Due Time *</Label>
+                  <Input
+                    id="todoDueTime"
+                    type="time"
+                    value={todoDueTime}
+                    onChange={(e) => setTodoDueTime(e.target.value)}
+                    className="text-base"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={addTodo}
+                  className="flex-1 gradient-bg text-white py-3 text-base font-medium"
+                  disabled={!todoTitle || !todoDueDate || !todoDueTime}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Task
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                  className="flex-1 py-3 text-base"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
-        </DashboardLayout>
+    </DashboardLayout>
   )
 }

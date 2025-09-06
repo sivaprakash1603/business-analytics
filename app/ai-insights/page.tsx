@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
-import { Brain, Send, TrendingUp, AlertTriangle, Lightbulb, BarChart3, Users, Target, Shield } from "lucide-react"
+import { Brain, Send, TrendingUp, AlertTriangle, Lightbulb, BarChart3, Users, Target, Shield, Sparkles, Zap, MessageSquare } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { 
   analyzeClients, 
@@ -18,6 +18,9 @@ import {
   type BusinessTrends,
   type RiskAnalysis
 } from "@/lib/advanced-analytics"
+import { motion } from "framer-motion"
+import { MagazineCard } from "@/components/magazine-card"
+import { FloatingElements } from "@/components/floating-elements"
 
 interface ChatMessage {
   id: string
@@ -633,12 +636,12 @@ Ask me anything about your business - I have access to advanced analytics includ
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="gradient-bg rounded-lg p-6 text-white">
+        <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-lg p-6 text-gray-900 dark:text-white border border-white/20 dark:border-gray-700/20 shadow-xl">
           <div className="flex items-center gap-3 mb-2">
             <Brain className="h-8 w-8" />
             <h1 className="text-2xl font-bold">AI Business Insights</h1>
           </div>
-          <p className="text-white/90">Get AI-powered suggestions and insights to improve your business performance</p>
+          <p className="text-gray-700 dark:text-gray-300">Get AI-powered suggestions and insights to improve your business performance</p>
         </div>
 
         {/* Loading State */}

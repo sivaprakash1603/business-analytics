@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/hooks/use-toast"
+import { MagazineCard } from "@/components/magazine-card"
 import { Plus, Users, DollarSign, Trash2 } from "lucide-react"
 import {
   Dialog,
@@ -199,7 +200,7 @@ function ClientsPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between glow-card backdrop-blur-sm shadow-2xl p-10 rounded-lg">
           <div>
             <h1 className="text-2xl font-bold">Client Management</h1>
             <p className="text-muted-foreground">Manage your clients and track revenue from each source</p>
@@ -259,42 +260,43 @@ function ClientsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
-              <Users className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{clients.length}</div>
-            </CardContent>
-          </Card>
+        <div className="flex flex-col lg:flex-row gap-6 mb-8">
+          <div className="flex-1">
+            <MagazineCard
+              title="Total Clients"
+              value={clients.length}
+              description="Active client relationships"
+              icon={Users}
+              gradient="from-blue-500 to-cyan-500"
+              className="hover:scale-105 transition-all duration-300 h-full"
+            />
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">${totalClientsIncome.toLocaleString()}</div>
-            </CardContent>
-          </Card>
+          <div className="flex-1">
+            <MagazineCard
+              title="Total Revenue"
+              value={`$${totalClientsIncome.toLocaleString()}`}
+              description="Revenue from all clients"
+              icon={DollarSign}
+              gradient="from-green-500 to-emerald-500"
+              className="hover:scale-105 transition-all duration-300 h-full"
+            />
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Average per Client</CardTitle>
-              <DollarSign className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ${clients.length > 0 ? Math.round(totalClientsIncome / clients.length).toLocaleString() : 0}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex-1">
+            <MagazineCard
+              title="Average per Client"
+              value={`$${clients.length > 0 ? Math.round(totalClientsIncome / clients.length).toLocaleString() : 0}`}
+              description="Average revenue per client"
+              icon={DollarSign}
+              gradient="from-purple-500 to-pink-500"
+              className="hover:scale-105 transition-all duration-300 h-full"
+            />
+          </div>
         </div>
 
         {/* Clients List */}
-        <Card>
+        <Card className="glow-card backdrop-blur-sm border-0 shadow-2xl">
           <CardHeader>
             <CardTitle>All Clients</CardTitle>
             <CardDescription>View and manage your client database</CardDescription>
@@ -321,7 +323,7 @@ function ClientsPage() {
                 {clients.map((client) => (
                   <div
                     key={client.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    className="backdrop-blur-sm flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
