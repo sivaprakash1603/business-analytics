@@ -71,7 +71,7 @@ export default function DashboardLayout({
     <div className="relative min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 z-0 opacity-100">
-        <UnicornScene projectId="tJ8pevguoGk5VRJcAqw9"/>
+        <UnicornScene projectId="tJ8pevguoGk5VRJcAqw9" />
       </div>
 
       {/* Overlay for better content readability */}
@@ -117,7 +117,7 @@ export default function DashboardLayout({
       />
 
       {/* Mobile sidebar */}
-            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="w-80 p-0 bg-gradient-to-b from-card/95 to-card/80 backdrop-blur-md border-r border-white/10 z-30">
           <div className="flex flex-col h-full">
             <motion.div

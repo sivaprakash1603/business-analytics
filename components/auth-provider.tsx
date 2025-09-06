@@ -88,14 +88,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async (companyName?: string) => {
     setLoading(true)
     console.log("[AuthProvider] signInWithGoogle called", { companyName })
+
+    // Get the correct redirect URL
+    const getURL = () => {
+      let url =
+        process?.env?.NEXT_PUBLIC_SITE_URL ?? // Set this to your site URL in production env.
+        process?.env?.NEXT_PUBLIC_VERCEL_URL ?? // Automatically set by Vercel.
+        'http://localhost:3000/'
+      // Make sure to include `https://` when not localhost.
+      url = url.startsWith('http') ? url : `https://${url}`
+      // Make sure to include a trailing `/`.
+      url = url.endsWith('/') ? url : `${url}/`
+      return url
+    }
+
     // Store companyName in localStorage for retrieval after redirect
     if (companyName) {
       localStorage.setItem("companyNameForGoogle", companyName);
     }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { queryParams: { companyName: companyName || "" } },
+      options: {
+        redirectTo: `${getURL()}`,
+        queryParams: { companyName: companyName || "" }
+      },
     })
+
     if (error) {
       console.error("[AuthProvider] signInWithGoogle error", error)
       throw error
