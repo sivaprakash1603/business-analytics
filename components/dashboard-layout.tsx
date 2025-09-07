@@ -17,11 +17,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { FloatingElements } from "@/components/floating-elements"
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: BarChart3, color: "from-blue-500 to-cyan-500" },
-  { name: "Clients", href: "/clients", icon: Users, color: "from-purple-500 to-pink-500" },
-  { name: "Todo List", href: "/todos", icon: CheckSquare, color: "from-green-500 to-emerald-500" },
-  { name: "News", href: "/news", icon: Newspaper, color: "from-orange-500 to-red-500" },
-  { name: "AI Insights", href: "/ai-insights", icon: Brain, color: "from-indigo-500 to-purple-500" },
+  { name: "Dashboard", href: "/dashboard", icon: BarChart3, color: "text-blue-500" },
+  { name: "Clients", href: "/clients", icon: Users, color: "text-purple-500" },
+  { name: "Todo List", href: "/todos", icon: CheckSquare, color: "text-green-500" },
+  { name: "News", href: "/news", icon: Newspaper, color: "text-orange-500" },
+  { name: "AI Insights", href: "/ai-insights", icon: Brain, color: "text-indigo-500" },
 ]
 
 export default function DashboardLayout({
@@ -141,8 +141,8 @@ export default function DashboardLayout({
 
             <nav className="flex-1 p-4 space-y-3">
               {navigation.map((item, index) => {
-                const Icon = item.icon
-                const isActive = pathname === item.href
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
                 return (
                   <motion.div
                     key={item.name}
@@ -154,35 +154,25 @@ export default function DashboardLayout({
                       href={item.href}
                       onClick={() => setSidebarOpen(false)}
                       className={cn(
-                        "group flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden",
-                        isActive
-                          ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/25"
-                          : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-white/5 hover:to-white/10 backdrop-blur-sm"
+                        "group flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden bg-transparent",
+                        isActive ? "text-transparent bg-clip-text bg-gradient-to-r "+item.color : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      {/* Background glow effect */}
-                      <div className={cn(
-                        "absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-300",
-                        `bg-gradient-to-r ${item.color}`
+                      {/* Only the icon, no background box */}
+                      <Icon className={cn(
+                        "h-5 w-5 transition-all duration-300",
+                        isActive ? item.color : ""
                       )} />
-
-                      <motion.div
-                        className="relative z-10 p-2 rounded-lg bg-white/10 group-hover:bg-white/20 transition-colors duration-300"
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </motion.div>
-
-                      <div className="relative z-10">
-                        <span className="font-semibold">{item.name}</span>
-                        {isActive && (
-                          <motion.div
-                            className="w-full h-0.5 bg-white rounded-full mt-1"
-                            layoutId="activeIndicator"
-                          />
-                        )}
-                      </div>
+                      <span className="font-semibold">{item.name}</span>
+                      {isActive && (
+                        <motion.div
+                          className={cn(
+                            "w-full h-0.5 rounded-full mt-1",
+                            "bg-gradient-to-r "+item.color
+                          )}
+                          layoutId="activeIndicator"
+                        />
+                      )}
                     </Link>
                   </motion.div>
                 )
@@ -257,8 +247,8 @@ export default function DashboardLayout({
 
           <nav className="flex-1 p-4 space-y-3">
             {navigation.map((item, index) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
               return (
                 <motion.div
                   key={item.name}
@@ -269,46 +259,35 @@ export default function DashboardLayout({
                   <Link
                     href={item.href}
                     className={cn(
-                      "group flex items-center px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden",
-                      isActive
-                        ? `bg-gradient-to-r ${item.color} text-white shadow-lg shadow-${item.color}/25`
-                        : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-white/5 hover:to-white/10 backdrop-blur-sm",
+                      "group flex items-center px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden bg-transparent",
+                      isActive ? "text-foreground" : `text-muted-foreground hover:${item.color}`,
                       isHovered ? "justify-start" : "justify-center"
                     )}
                   >
-                    {/* Background glow effect */}
-                    <div className={cn(
-                      "absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-300",
-                      `bg-gradient-to-r ${item.color}`
-                    )} />
-
-                    <motion.div
-                      className="relative z-10 p-2 rounded-lg bg-white/10 group-hover:bg-white/20 transition-colors duration-300"
-                      whileHover={{ scale: 1.1, rotate: 5 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </motion.div>
-
-                    <AnimatePresence>
-                      {isHovered && (
-                        <motion.div
-                          className="relative z-10 ml-3 overflow-hidden"
-                          initial={{ width: 0, opacity: 0 }}
-                          animate={{ width: "auto", opacity: 1 }}
-                          exit={{ width: 0, opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          <span className="font-semibold whitespace-nowrap">{item.name}</span>
-                          {isActive && (
-                            <motion.div
-                              className="w-full h-0.5 bg-white rounded-full mt-1"
-                              layoutId="activeIndicatorDesktop"
-                            />
-                          )}
-                        </motion.div>
+                    {/* Only the icon, no background box */}
+                    <span
+                      className={cn(
+                        "inline-block",
+                        isActive ? item.color : "text-foreground"
                       )}
-                    </AnimatePresence>
+                    >
+                      <Icon className="h-5 w-5 transition-all duration-300" />
+                    </span>
+                    {isHovered && (
+                      <span className={cn(
+                        "font-semibold whitespace-nowrap ml-3",
+                        isActive ? item.color : ""
+                      )}>{item.name}</span>
+                    )}
+                    {isActive && isHovered && (
+                      <motion.div
+                        className={cn(
+                          "w-full h-0.5 rounded-full mt-1",
+                          "bg-gradient-to-r "+item.color
+                        )}
+                        layoutId="activeIndicatorDesktop"
+                      />
+                    )}
                   </Link>
                 </motion.div>
               )

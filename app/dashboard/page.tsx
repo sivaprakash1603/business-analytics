@@ -905,17 +905,16 @@ export default function DashboardPage() {
             <CardContent className="p-6">
               <Tabs defaultValue="analytics" className="space-y-6">
                 {/* Update the TabsList to include the news tab */}
-                <TabsList className="grid w-full grid-cols-5 bg-gray-100 dark:bg-gray-800">
+                <TabsList className="grid w-full grid-cols-4 glow-card backdrop-blur shadow-lg">
                   <TabsTrigger value="analytics" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Analytics</TabsTrigger>
                   <TabsTrigger value="income" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Income</TabsTrigger>
                   <TabsTrigger value="spending" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Spending</TabsTrigger>
                   <TabsTrigger value="enhanced" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Enhanced</TabsTrigger>
-                  <TabsTrigger value="news" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Current Affairs</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="analytics" className="space-y-6">
                   {/* Filters Card */}
-                  <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
+                  <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 backdrop-blur glow-card shadow-lg">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                         <Filter className="h-5 w-5" />
@@ -991,7 +990,7 @@ export default function DashboardPage() {
                   </Card>
 
                   {/* Update the Chart Card section to include loading state */}
-                  <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-white/20 dark:border-gray-700/20 shadow-xl">
+                  <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
                     <CardHeader>
                       <CardTitle className="text-gray-900 dark:text-white">Financial Overview</CardTitle>
                       <CardDescription className="text-gray-600 dark:text-gray-300">Track your income, spending, and profit over time</CardDescription>
@@ -1067,7 +1066,7 @@ export default function DashboardPage() {
                   </Card>
 
                   {/* Loans Card */}
-                  <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-white/20 dark:border-gray-700/20 shadow-xl">
+                  <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20 ">
                     <CardHeader>
                       <CardTitle className="text-gray-900 dark:text-white">Loan Management</CardTitle>
                       <CardDescription className="text-gray-600 dark:text-gray-300">Track and manage your outstanding loans</CardDescription>
@@ -1111,7 +1110,7 @@ export default function DashboardPage() {
                         {loanEntries.map((loan) => (
                           <motion.div
                             key={loan.id}
-                            className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.3 }}
@@ -1153,7 +1152,7 @@ export default function DashboardPage() {
                 </TabsContent>
 
                 <TabsContent value="income" className="space-y-6">
-                  <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-white/20 dark:border-gray-700/20 shadow-xl">
+                  <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
                     <CardHeader>
                       <CardTitle className="text-gray-900 dark:text-white">Add Income</CardTitle>
                       <CardDescription className="text-gray-600 dark:text-gray-300">Record new income from clients or other sources</CardDescription>
@@ -1226,7 +1225,7 @@ export default function DashboardPage() {
                           .map((entry) => (
                             <motion.div
                               key={entry.id}
-                              className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                              className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ duration: 0.3 }}
@@ -1251,7 +1250,7 @@ export default function DashboardPage() {
                 </TabsContent>
 
                 <TabsContent value="spending" className="space-y-6">
-                  <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-white/20 dark:border-gray-700/20 shadow-xl">
+                  <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
                     <CardHeader>
                       <CardTitle className="text-gray-900 dark:text-white">Add Spending</CardTitle>
                       <CardDescription className="text-gray-600 dark:text-gray-300">Record business expenses and spending</CardDescription>
@@ -1299,7 +1298,7 @@ export default function DashboardPage() {
                           .map((entry) => (
                             <motion.div
                               key={entry.id}
-                              className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                              className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ duration: 0.3 }}
@@ -1382,76 +1381,6 @@ export default function DashboardPage() {
                     }}
                     availableData={chartData}
                   />
-                </TabsContent>
-
-                {/* Add the new Current Affairs tab content after the spending tab */}
-                <TabsContent value="news" className="space-y-6">
-                  <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-white/20 dark:border-gray-700/20 shadow-xl">
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between text-gray-900 dark:text-white">
-                        <span>Current Affairs & Industry News</span>
-                        <Button onClick={fetchNews} disabled={newsLoading} variant="outline" size="sm" className="border-gray-300 dark:border-gray-600">
-                          {newsLoading ? (
-                            <div className="loading-dots-small">
-                              <div className="dot-small"></div>
-                              <div className="dot-small"></div>
-                              <div className="dot-small"></div>
-                            </div>
-                          ) : (
-                            "Refresh"
-                          )}
-                        </Button>
-                      </CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-300">Stay updated with the latest business and industry news</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {newsLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                          <div className="loading-dots">
-                            <div className="dot"></div>
-                            <div className="dot"></div>
-                            <div className="dot"></div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {newsArticles.map((article, index) => (
-                            <motion.div
-                              key={index}
-                              className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.3, delay: index * 0.1 }}
-                              onClick={() => window.open(article.url, "_blank")}
-                            >
-                              <div className="flex gap-4">
-                                <img
-                                  src={article.urlToImage || "/placeholder.svg"}
-                                  alt={article.title}
-                                  className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
-                                />
-                                <div className="flex-1">
-                                  <h3 className="font-semibold text-lg mb-2 line-clamp-2 text-gray-900 dark:text-white">{article.title}</h3>
-                                  <p className="text-muted-foreground text-sm mb-3 line-clamp-2">
-                                    {article.description}
-                                  </p>
-                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span className="font-medium">{article.source.name}</span>
-                                    <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </motion.div>
-                          ))}
-                          {newsArticles.length === 0 && (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                              No news articles available at the moment
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
                 </TabsContent>
               </Tabs>
             </CardContent>
