@@ -9,10 +9,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { Brain, Send, TrendingUp, AlertTriangle, Lightbulb, BarChart3, Users, Target, Shield, Sparkles, Zap, MessageSquare } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { 
-  analyzeClients, 
-  calculateBusinessTrends, 
-  assessRisks, 
+import {
+  analyzeClients,
+  calculateBusinessTrends,
+  assessRisks,
   generateInsightReport,
   type ClientAnalysis,
   type BusinessTrends,
@@ -140,14 +140,14 @@ export default function AIInsightsPage() {
         const clientAnalysisResults = analyzeClients(incomeEntries, clients)
         const businessTrendsResults = calculateBusinessTrends(incomeEntries)
         const riskAnalysisResults = assessRisks(clientAnalysisResults, totalIncome)
-        
+
         setClientAnalysis(clientAnalysisResults)
         setBusinessTrends(businessTrendsResults)
         setRiskAnalysis(riskAnalysisResults)
 
         // Add welcome message - always create fresh with current data
         const savedMessages = localStorage.getItem("aiMessages")
-        
+
         let welcomeContent: string
         if (totalIncome === 0 && totalSpending === 0 && clients.length === 0) {
           welcomeContent = `Welcome to AI Business Insights! 🚀 
@@ -245,7 +245,7 @@ No clients are showing signs of churn risk. Your client relationships appear str
 
       let response = `⚠️ **CLIENT RISK ANALYSIS**\n\n`;
       response += `${atRiskClients.length} of your ${clientAnalysis.length} clients need attention:\n\n`;
-      
+
       atRiskClients.slice(0, 5).forEach(client => {
         response += `🔴 **${client.name}** (${client.company})\n`;
         response += `• Last transaction: ${client.daysSinceLastTransaction === Infinity ? 'Never' : `${client.daysSinceLastTransaction} days ago`}\n`;
@@ -272,8 +272,8 @@ No clients are showing signs of churn risk. Your client relationships appear str
 
       let response = `🏆 **TOP CLIENT PERFORMANCE**\n\n`;
       topClients.forEach((client, index) => {
-        const trendEmoji = client.trend === 'growing' ? '📈' : 
-                          client.trend === 'declining' ? '📉' : '➖';
+        const trendEmoji = client.trend === 'growing' ? '📈' :
+          client.trend === 'declining' ? '📉' : '➖';
         response += `${index + 1}. **${client.name}** (${client.company})\n`;
         response += `• Total Revenue: $${client.totalRevenue.toLocaleString()}\n`;
         response += `• Transactions: ${client.totalTransactions}\n`;
@@ -297,7 +297,7 @@ No clients are showing signs of churn risk. Your client relationships appear str
       if (!riskAnalysis) return "Risk analysis data is not available yet.";
 
       let response = `🎯 **BUSINESS RISK ASSESSMENT**\n\n`;
-      
+
       response += `📊 **KEY RISK METRICS:**\n`;
       response += `• Client Concentration Risk: ${riskAnalysis.clientConcentrationRisk.toFixed(1)}%\n`;
       response += `• Top Client Dependency: ${riskAnalysis.topClientDependency.toFixed(1)}%\n`;
@@ -331,7 +331,7 @@ No clients are showing signs of churn risk. Your client relationships appear str
       response += `• Revenue Growth Rate: ${businessTrends.revenueGrowthRate.toFixed(1)}% per month\n`;
       response += `• Transaction Value Trend: ${businessTrends.averageTransactionTrend.toFixed(1)}%\n\n`;
 
-      const bestMonth = businessTrends.seasonalPatterns.reduce((max, month) => 
+      const bestMonth = businessTrends.seasonalPatterns.reduce((max, month) =>
         month.revenue > max.revenue ? month : max
       );
       response += `🏆 **Best Month:** ${bestMonth.month}\n`;
@@ -351,15 +351,14 @@ No clients are showing signs of churn risk. Your client relationships appear str
     if (message.includes("profit") || message.includes("profitability")) {
       const profitMargin =
         businessData.totalIncome > 0 ? (businessData.totalProfit / businessData.totalIncome) * 100 : 0
-      return `Your current profit margin is ${profitMargin.toFixed(1)}%. ${
-        profitMargin > 20
+      return `Your current profit margin is ${profitMargin.toFixed(1)}%. ${profitMargin > 20
           ? "Excellent! You have a healthy profit margin."
           : profitMargin > 10
             ? "Good profit margin, but there's room for improvement."
             : profitMargin > 0
               ? "Your profit margin is low. Consider reducing expenses or increasing revenue."
               : "You're operating at a loss. Immediate action needed to reduce costs or increase income."
-      }
+        }
 
 Suggestions:
 • Review your highest spending categories and identify areas to cut costs
@@ -405,15 +404,14 @@ Suggestions:
 • Total spending: $${businessData.totalSpending.toLocaleString()}
 • Expense ratio: ${expenseRatio.toFixed(1)}% of income
 
-${
-  expenseRatio > 80
-    ? "Your expenses are very high relative to income. Immediate cost reduction needed."
-    : expenseRatio > 60
-      ? "Your expense ratio is concerning. Look for cost-cutting opportunities."
-      : expenseRatio > 40
-        ? "Moderate expense ratio. Some optimization possible."
-        : "Good expense management!"
-}
+${expenseRatio > 80
+          ? "Your expenses are very high relative to income. Immediate cost reduction needed."
+          : expenseRatio > 60
+            ? "Your expense ratio is concerning. Look for cost-cutting opportunities."
+            : expenseRatio > 40
+              ? "Moderate expense ratio. Some optimization possible."
+              : "Good expense management!"
+        }
 
 Cost reduction strategies:
 • Review recurring subscriptions and cancel unused services
@@ -549,7 +547,7 @@ Ask me anything about your business - I have access to advanced analytics includ
       })
 
       const data = await response.json()
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to get AI response')
       }
@@ -564,7 +562,7 @@ Ask me anything about your business - I have access to advanced analytics includ
       setMessages((prev) => [...prev, aiResponse])
     } catch (error) {
       console.error('Error sending message:', error)
-      
+
       // Fallback to local AI response
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -574,7 +572,7 @@ Ask me anything about your business - I have access to advanced analytics includ
       }
 
       setMessages((prev) => [...prev, aiResponse])
-      
+
       toast({
         title: "AI Response",
         description: "Using offline AI. For better responses, check your internet connection.",
@@ -662,8 +660,8 @@ Ask me anything about your business - I have access to advanced analytics includ
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>📊 Data Summary</span>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => {
                     localStorage.removeItem("aiMessages")
@@ -678,7 +676,7 @@ Ask me anything about your business - I have access to advanced analytics includ
               {businessData.totalIncome === 0 && businessData.totalSpending === 0 && businessData.clientCount === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground mb-4">No business data found. Add some data to get AI insights!</p>
-                  <Button 
+                  <Button
                     onClick={() => window.location.href = '/dashboard'}
                     className="gradient-bg text-white"
                   >
@@ -735,7 +733,7 @@ Ask me anything about your business - I have access to advanced analytics includ
                         <div className="font-bold text-green-600">${client.totalRevenue.toLocaleString()}</div>
                         <Badge variant={
                           client.trend === 'growing' ? 'default' :
-                          client.trend === 'declining' ? 'destructive' : 'secondary'
+                            client.trend === 'declining' ? 'destructive' : 'secondary'
                         }>
                           {client.trend === 'growing' ? '📈' : client.trend === 'declining' ? '📉' : '➖'} {client.trend}
                         </Badge>
@@ -768,8 +766,8 @@ Ask me anything about your business - I have access to advanced analytics includ
                           <div className="font-medium">{client.name}</div>
                           <div className="text-sm text-muted-foreground">{client.company}</div>
                           <div className="text-xs text-red-600">
-                            {client.daysSinceLastTransaction === Infinity 
-                              ? 'No transactions yet' 
+                            {client.daysSinceLastTransaction === Infinity
+                              ? 'No transactions yet'
                               : `${client.daysSinceLastTransaction} days since last transaction`}
                           </div>
                         </div>
@@ -823,7 +821,7 @@ Ask me anything about your business - I have access to advanced analytics includ
                   <div className="text-xs text-muted-foreground">Need immediate attention</div>
                 </div>
               </div>
-              
+
               {(riskAnalysis.clientConcentrationRisk > 50 || riskAnalysis.topClientDependency > 30) && (
                 <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                   <div className="font-medium text-orange-800">⚠️ Diversification Recommended</div>
@@ -841,7 +839,7 @@ Ask me anything about your business - I have access to advanced analytics includ
           <Card>
             <CardContent className="p-6">
               <div className="text-center">
-                <Button 
+                <Button
                   onClick={() => {
                     if (businessTrends && riskAnalysis) {
                       const report = generateInsightReport(clientAnalysis, businessTrends, riskAnalysis, businessData);
@@ -928,13 +926,12 @@ Ask me anything about your business - I have access to advanced analytics includ
                   return (
                     <div key={index} className="flex items-start gap-3 p-4 border rounded-lg">
                       <Icon
-                        className={`h-5 w-5 mt-0.5 ${
-                          insight.type === "warning"
+                        className={`h-5 w-5 mt-0.5 ${insight.type === "warning"
                             ? "text-red-500"
                             : insight.type === "positive"
                               ? "text-green-500"
                               : "text-blue-500"
-                        }`}
+                          }`}
                       />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -966,7 +963,7 @@ Ask me anything about your business - I have access to advanced analytics includ
         )}
 
         {/* Chat Interface */}
-  <Card className="flex flex-col h-[600px] mb-8">
+        <Card className="flex flex-col h-[600px] mb-8">
           <CardHeader>
             <CardTitle>AI Assistant</CardTitle>
             <CardDescription>Ask questions about your business analytics and get personalized advice</CardDescription>
@@ -975,11 +972,10 @@ Ask me anything about your business - I have access to advanced analytics includ
             {/* Messages */}
             <div className="flex-1 overflow-y-auto space-y-4 px-6 pt-6 scroll-smooth hide-scrollbar">
               {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}> 
+                <div key={message.id} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                      message.type === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-                    }`}
+                    className={`max-w-[80%] p-3 rounded-lg ${message.type === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                      }`}
                   >
                     <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                     <div className="text-xs opacity-70 mt-1">{new Date(message.timestamp).toLocaleTimeString()}</div>
@@ -1024,6 +1020,6 @@ Ask me anything about your business - I have access to advanced analytics includ
           </CardContent>
         </Card>
       </div>
-        </DashboardLayout>
+    </DashboardLayout>
   )
 }
