@@ -634,7 +634,7 @@ Ask me anything about your business - I have access to advanced analytics includ
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 mb-24">
         {/* Header */}
         <div className="backdrop-blur-md rounded-lg p-6 text-gray-900 dark:text-white border-white/20 dark:border-gray-700/20 shadow-xl bg-gradient-to-br from-white/90 to-white/50 dark:from-gray-900/90 dark:to-gray-900/50">
           <div className="flex items-center gap-3 mb-2">
@@ -966,16 +966,16 @@ Ask me anything about your business - I have access to advanced analytics includ
         )}
 
         {/* Chat Interface */}
-        <Card className="flex flex-col h-[600px]">
+  <Card className="flex flex-col h-[600px] mb-8">
           <CardHeader>
             <CardTitle>AI Assistant</CardTitle>
             <CardDescription>Ask questions about your business analytics and get personalized advice</CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
+          <CardContent className="h-full flex-1 flex flex-col p-0">
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+            <div className="flex-1 overflow-y-auto space-y-4 px-6 pt-6 scroll-smooth hide-scrollbar">
               {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}>
+                <div key={message.id} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}> 
                   <div
                     className={`max-w-[80%] p-3 rounded-lg ${
                       message.type === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
@@ -998,8 +998,8 @@ Ask me anything about your business - I have access to advanced analytics includ
               )}
             </div>
 
-            {/* Input */}
-            <div className="flex gap-2">
+            {/* Input - always visible */}
+            <div className="flex gap-2 px-6 pb-6 pt-2 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
               <Textarea
                 placeholder="Ask me anything about your business analytics..."
                 value={inputMessage}
