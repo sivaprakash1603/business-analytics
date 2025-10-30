@@ -9,17 +9,55 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, Suspense } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle, BarChart3, Settings } from "lucide-react"
 import { RealTimeDataProvider } from "@/components/realtime-data-provider"
 import { motion } from "framer-motion"
 import { MagazineCard } from "@/components/magazine-card"
 import { DownloadReportDialog } from "@/components/download-report-dialog"
-import { InteractiveChart } from "@/components/interactive-chart"
-import { ComparativeAnalysis } from "@/components/comparative-analysis"
-import { CustomDashboardBuilder } from "@/components/custom-dashboard-builder"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import dynamic from "next/dynamic"
+
+// Lazy load heavy components with proper typing
+const LazyComparativeAnalysis = dynamic(() =>
+  import("@/components/comparative-analysis").then(mod => ({ default: mod.ComparativeAnalysis })), {
+  loading: () => (
+    <MagazineCard
+      title="Loading Analysis"
+      description="Preparing comparative analysis..."
+      icon={BarChart3}
+      value="..."
+    />
+  ),
+  ssr: false
+})
+
+const LazyInteractiveChart = dynamic(() =>
+  import("@/components/interactive-chart").then(mod => ({ default: mod.InteractiveChart })), {
+  loading: () => (
+    <MagazineCard
+      title="Loading Chart"
+      description="Preparing interactive chart..."
+      icon={BarChart3}
+      value="..."
+    />
+  ),
+  ssr: false
+})
+
+const LazyCustomDashboardBuilder = dynamic(() =>
+  import("@/components/custom-dashboard-builder").then(mod => ({ default: mod.CustomDashboardBuilder })), {
+  loading: () => (
+    <MagazineCard
+      title="Loading Builder"
+      description="Preparing dashboard builder..."
+      icon={Settings}
+      value="..."
+    />
+  ),
+  ssr: false
+})
 
 
 // Load clients from localStorage for suggestions
@@ -482,18 +520,40 @@ export default function DashboardPage() {
     }
   }
 
-  // Calculate totals
-  const totalIncome = incomeEntries.reduce((sum, entry) => sum + entry.amount, 0)
-  const totalSpending = spendingEntries.reduce((sum, entry) => sum + entry.amount, 0)
-  const totalProfit = totalIncome - totalSpending
-  const totalLoans = loanEntries.filter((loan) => !loan.isPaid).reduce((sum, loan) => sum + loan.amount, 0)
+  // Calculate totals with memoization
+  const totalIncome = useMemo(() =>
+    incomeEntries.reduce((sum, entry) => sum + entry.amount, 0),
+    [incomeEntries]
+  )
 
-  // Get unique sources and reasons for filters
-  const uniqueSources = [...new Set(incomeEntries.map((entry) => entry.source))]
-  const uniqueReasons = [...new Set(spendingEntries.map((entry) => entry.reason))]
+  const totalSpending = useMemo(() =>
+    spendingEntries.reduce((sum, entry) => sum + entry.amount, 0),
+    [spendingEntries]
+  )
 
-  // Filter data based on time period
-  const getFilteredData = () => {
+  const totalProfit = useMemo(() =>
+    totalIncome - totalSpending,
+    [totalIncome, totalSpending]
+  )
+
+  const totalLoans = useMemo(() =>
+    loanEntries.filter((loan) => !loan.isPaid).reduce((sum, loan) => sum + loan.amount, 0),
+    [loanEntries]
+  )
+
+  // Get unique sources and reasons for filters with memoization
+  const uniqueSources = useMemo(() =>
+    [...new Set(incomeEntries.map((entry) => entry.source))],
+    [incomeEntries]
+  )
+
+  const uniqueReasons = useMemo(() =>
+    [...new Set(spendingEntries.map((entry) => entry.reason))],
+    [spendingEntries]
+  )
+
+  // Filter data based on time period with memoization
+  const filteredData = useMemo(() => {
     const now = new Date()
     const startDate = new Date()
 
@@ -530,11 +590,11 @@ export default function DashboardPage() {
     )
 
     return { filteredIncome, filteredSpending }
-  }
+  }, [timeFilter, incomeEntries, spendingEntries, sourceFilter, reasonFilter])
 
   // Prepare chart data based on selected time unit
   const getChartData = () => {
-    const { filteredIncome, filteredSpending } = getFilteredData()
+    const { filteredIncome, filteredSpending } = filteredData
     
     console.log(`Grouping data by: ${timeUnit}`)
     console.log("Filtered income entries:", filteredIncome.length)
@@ -1325,62 +1385,89 @@ export default function DashboardPage() {
                 {/* Enhanced Data Visualization Tab */}
                 <TabsContent value="enhanced" className="space-y-6">
                   {/* Interactive Chart with Real-time Updates */}
-                  <InteractiveChart
-                    data={chartData}
-                    title="Interactive Financial Overview"
-                    description="Click on data points for detailed drill-down analysis"
-                    type="line"
-                    height={400}
-                    enableRealTime={true}
-                    onDrillDown={(data: any) => {
-                      console.log('Drill-down data:', data)
-                      // Handle drill-down logic here
-                    }}
-                    onExport={() => {
-                      // Handle export logic here
-                      console.log('Exporting chart data...')
-                    }}
-                  />
+                  <Suspense fallback={
+                    <MagazineCard
+                      title="Loading Chart"
+                      description="Preparing interactive visualization..."
+                      icon={BarChart3}
+                      value="..."
+                    />
+                  }>
+                    <LazyInteractiveChart
+                      data={chartData}
+                      title="Interactive Financial Overview"
+                      description="Click on data points for detailed drill-down analysis"
+                      type="line"
+                      height={400}
+                      enableRealTime={true}
+                      onDrillDown={(data: any) => {
+                        console.log('Drill-down data:', data)
+                        // Handle drill-down logic here
+                      }}
+                      onExport={() => {
+                        // Handle export logic here
+                        console.log('Exporting chart data...')
+                      }}
+                    />
+                  </Suspense>
 
                   {/* Real-time Status Indicator */}
                   {/* Comparative Analysis */}
-                  <ComparativeAnalysis
-                    data={comparativeData}
-                    title="Year-over-Year & Competitor Analysis"
-                    description="Compare your performance against previous years and industry competitors"
-                    metrics={{
-                      currentYear: "2024",
-                      previousYear: "2023",
-                      competitors: ["TechCorp", "DataSys"],
-                      industry: "Industry Average"
-                    }}
-                  />
+                  <Suspense fallback={
+                    <MagazineCard
+                      title="Loading Analysis"
+                      description="Preparing comparative analysis..."
+                      icon={BarChart3}
+                      value="..."
+                    />
+                  }>
+                    <LazyComparativeAnalysis
+                      data={comparativeData}
+                      title="Year-over-Year & Competitor Analysis"
+                      description="Compare your performance against previous years and industry competitors"
+                      metrics={{
+                        currentYear: "2024",
+                        previousYear: "2023",
+                        competitors: ["TechCorp", "DataSys"],
+                        industry: "Industry Average"
+                      }}
+                    />
+                  </Suspense>
 
                   {/* Custom Dashboard Builder */}
-                  <CustomDashboardBuilder
-                    initialWidgets={[
-                      {
-                        id: 'widget-1',
-                        type: 'chart',
-                        title: 'Revenue Chart',
-                        position: { x: 0, y: 0, w: 6, h: 4 },
-                        config: { chartType: 'line', enableRealTime: true },
-                        data: chartData
-                      },
-                      {
-                        id: 'widget-2',
-                        type: 'metric',
-                        title: 'Total Revenue',
-                        position: { x: 6, y: 0, w: 3, h: 2 },
-                        config: { value: totalIncome.toLocaleString(), change: '+12%' }
-                      }
-                    ]}
-                    onSave={(widgets: any) => {
-                      console.log('Dashboard saved:', widgets)
-                      // Handle dashboard save logic here
-                    }}
-                    availableData={chartData}
-                  />
+                  <Suspense fallback={
+                    <MagazineCard
+                      title="Loading Builder"
+                      description="Preparing dashboard builder..."
+                      icon={Settings}
+                      value="..."
+                    />
+                  }>
+                    <LazyCustomDashboardBuilder
+                      initialWidgets={[
+                        {
+                          id: 'widget-1',
+                          type: 'chart',
+                          title: 'Revenue Chart',
+                          position: { x: 0, y: 0, w: 6, h: 4 },
+                          config: { chartType: 'line', enableRealTime: true },
+                          data: chartData
+                        },
+                        {
+                          id: 'widget-2',
+                          type: 'metric',
+                          title: 'Total Revenue',
+                          position: { x: 6, y: 0, w: 3, h: 2 },
+                          config: { value: totalIncome.toLocaleString(), change: '+12%' }
+                        }
+                      ]}
+                      onSave={(widgets: any) => {
+                        console.log('Dashboard saved:', widgets)
+                        // Handle dashboard save logic here
+                      }}
+                      availableData={chartData}
+                    />
+                  </Suspense>
                 </TabsContent>
               </Tabs>
             </CardContent>

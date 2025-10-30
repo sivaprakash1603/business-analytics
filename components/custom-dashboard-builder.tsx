@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, Suspense } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { motion, Reorder } from "framer-motion"
 import { Plus, Settings, Trash2, GripVertical, BarChart3, TrendingUp, Users, DollarSign, PieChart, Activity, Save, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { InteractiveChart } from "@/components/interactive-chart"
+import dynamic from "next/dynamic"
 
 interface DashboardWidget {
   id: string
@@ -23,6 +23,21 @@ interface DashboardWidget {
   config: any
   data?: any[]
 }
+
+const LazyInteractiveChart = dynamic(() =>
+  import("@/components/interactive-chart").then(mod => ({ default: mod.InteractiveChart })), {
+    loading: () => (
+      <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-white/20 dark:border-gray-700/20 shadow-xl">
+        <CardContent className="flex items-center justify-center h-32">
+          <div className="text-center">
+            <BarChart3 className="h-8 w-8 mx-auto mb-2 text-gray-400 animate-pulse" />
+            <p className="text-sm text-gray-500">Loading chart...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+)
 
 interface CustomDashboardBuilderProps {
   initialWidgets?: DashboardWidget[]
@@ -101,14 +116,25 @@ export function CustomDashboardBuilder({
     switch (widget.type) {
       case 'chart':
         return (
-          <InteractiveChart
-            data={widget.data || []}
-            title={widget.title}
-            description={widget.description}
-            type={widget.config.chartType || 'line'}
-            height={widget.position.h * 60}
-            enableRealTime={widget.config.enableRealTime}
-          />
+          <Suspense fallback={
+            <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-white/20 dark:border-gray-700/20 shadow-xl">
+              <CardContent className="flex items-center justify-center h-32">
+                <div className="text-center">
+                  <BarChart3 className="h-8 w-8 mx-auto mb-2 text-gray-400 animate-pulse" />
+                  <p className="text-sm text-gray-500">Loading chart...</p>
+                </div>
+              </CardContent>
+            </Card>
+          }>
+            <LazyInteractiveChart
+              data={widget.data || []}
+              title={widget.title}
+              description={widget.description}
+              type={widget.config.chartType || 'line'}
+              height={widget.position.h * 60}
+              enableRealTime={widget.config.enableRealTime}
+            />
+          </Suspense>
         )
 
       case 'metric':

@@ -28,7 +28,7 @@ const toggleVariants = cva(
   }
 )
 
-const Toggle = React.forwardRef<
+const Toggle = React.memo(React.forwardRef<
   React.ElementRef<typeof TogglePrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof TogglePrimitive.Root> &
     VariantProps<typeof toggleVariants>
@@ -38,7 +38,7 @@ const Toggle = React.forwardRef<
     className={cn(toggleVariants({ variant, size, className }))}
     {...props}
   />
-))
+)))
 
 Toggle.displayName = TogglePrimitive.Root.displayName
 

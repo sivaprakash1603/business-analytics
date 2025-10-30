@@ -33,4 +33,7 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   )
 }
 
-export { Badge, badgeVariants }
+const MemoizedBadge = React.memo(Badge)
+MemoizedBadge.displayName = "Badge"
+
+export { MemoizedBadge as Badge, badgeVariants }

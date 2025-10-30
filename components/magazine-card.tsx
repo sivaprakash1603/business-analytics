@@ -1,5 +1,6 @@
 "use client"
 
+import React from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +18,7 @@ interface MagazineCardProps {
   className?: string
 }
 
-export function MagazineCard({
+export const MagazineCard = React.memo(function MagazineCard({
   title,
   description,
   value,
@@ -46,7 +47,7 @@ export function MagazineCard({
       }}
       className={`group ${className}`}
     >
-      <Card className="glow-card p-2 rounded-lg relative overflow-hidden bg-gradient-to-br from-white/90 to-white/50 dark:from-gray-900/90 dark:to-gray-900/50 backdrop-blur border-0 shadow-2xl hover:shadow-3xl transition-all duration-500">
+      <Card className="p-2 rounded-lg relative overflow-hidden bg-gradient-to-br from-white/90 to-white/50 dark:from-gray-900/90 dark:to-gray-900/50 backdrop-blur border-0 shadow-2xl hover:shadow-3xl transition-all duration-500">
         {/* Animated background gradient */}
         <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-30 transition-opacity duration-500 -z-10`} />
 
@@ -100,4 +101,4 @@ export function MagazineCard({
       </Card>
     </motion.div>
   )
-}
+})

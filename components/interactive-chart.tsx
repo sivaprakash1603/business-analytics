@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -105,11 +105,11 @@ export function InteractiveChart({
         )
 
       case 'pie':
-        const pieData = data.map((item, index) => ({
+        const pieData = useMemo(() => data.map((item, index) => ({
           name: item.period,
           value: item.income || item.amount || 0,
           fill: COLORS[index % COLORS.length]
-        }))
+        })), [data])
 
         return (
           <PieChart>
