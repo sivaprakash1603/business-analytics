@@ -9,55 +9,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
-import { useState, useEffect, useMemo, Suspense } from "react"
+import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle, BarChart3, Settings } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle } from "lucide-react"
 import { RealTimeDataProvider } from "@/components/realtime-data-provider"
 import { motion } from "framer-motion"
 import { MagazineCard } from "@/components/magazine-card"
 import { DownloadReportDialog } from "@/components/download-report-dialog"
+import { InteractiveChart } from "@/components/interactive-chart"
+import { ComparativeAnalysis } from "@/components/comparative-analysis"
+import { CustomDashboardBuilder } from "@/components/custom-dashboard-builder"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
-import dynamic from "next/dynamic"
-
-// Lazy load heavy components with proper typing
-const LazyComparativeAnalysis = dynamic(() =>
-  import("@/components/comparative-analysis").then(mod => ({ default: mod.ComparativeAnalysis })), {
-  loading: () => (
-    <MagazineCard
-      title="Loading Analysis"
-      description="Preparing comparative analysis..."
-      icon={BarChart3}
-      value="..."
-    />
-  ),
-  ssr: false
-})
-
-const LazyInteractiveChart = dynamic(() =>
-  import("@/components/interactive-chart").then(mod => ({ default: mod.InteractiveChart })), {
-  loading: () => (
-    <MagazineCard
-      title="Loading Chart"
-      description="Preparing interactive chart..."
-      icon={BarChart3}
-      value="..."
-    />
-  ),
-  ssr: false
-})
-
-const LazyCustomDashboardBuilder = dynamic(() =>
-  import("@/components/custom-dashboard-builder").then(mod => ({ default: mod.CustomDashboardBuilder })), {
-  loading: () => (
-    <MagazineCard
-      title="Loading Builder"
-      description="Preparing dashboard builder..."
-      icon={Settings}
-      value="..."
-    />
-  ),
-  ssr: false
-})
 
 
 // Load clients from localStorage for suggestions
@@ -65,13 +27,21 @@ async function fetchClientsFromDB(userId: string) {
   try {
     const res = await fetch(`/api/clients?userId=${encodeURIComponent(userId)}`)
     const data = await res.json()
-    if (res.ok && data.clients) return data.clients
+    if (res.ok && data.clients) {
+      // Normalize to avoid undefined name/company for encrypted records
+      return data.clients.map((c: any) => ({
+        ...c,
+        name: typeof c?.name === 'string' ? c.name : 'Encrypted',
+        company: typeof c?.company === 'string' ? c.company : 'Encrypted',
+      }))
+    }
     return []
   } catch {
     return []
   }
 }
 import { FloatingElements } from "@/components/floating-elements"
+import { usePassphrase } from "@/components/passphrase-context"
 
 interface IncomeEntry {
   id: string
@@ -98,6 +68,7 @@ interface LoanEntry {
 export default function DashboardPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const { passphrase, encryptPayload, decryptPayload } = usePassphrase()
   const [companyName, setCompanyName] = useState("")
 
   // Main loading state for entire page
@@ -123,18 +94,36 @@ export default function DashboardPage() {
         setClientSuggestions([])
         return
       }
-      const allClients = await fetchClientsFromDB(user.uid)
+      let allClients = await fetchClientsFromDB(user.uid)
       if (ignore) return
+      // Decrypt client names/companies for better suggestions if passphrase is set
+      if (passphrase) {
+        allClients = await Promise.all(
+          allClients.map(async (client: any) => {
+            if (client.__encrypted && client.encrypted) {
+              try {
+                const dec = await decryptPayload(client.encrypted)
+                return { ...client, ...dec }
+              } catch {
+                // Keep masked values
+                return client
+              }
+            }
+            return client
+          })
+        )
+      }
+      const term = incomeSource.toLowerCase()
       const filtered = allClients.filter(
-        (client: { clientId: string; name: string; company: string }) =>
-          client.name.toLowerCase().includes(incomeSource.toLowerCase()) ||
-          client.company.toLowerCase().includes(incomeSource.toLowerCase())
+        (client: { clientId: string; name?: string; company?: string }) =>
+          (client.name || '').toLowerCase().includes(term) ||
+          (client.company || '').toLowerCase().includes(term)
       )
       setClientSuggestions(filtered)
     }
     updateSuggestions()
     return () => { ignore = true }
-  }, [incomeSource, user?.uid])
+  }, [incomeSource, user?.uid, passphrase, decryptPayload])
 
   // State for spending
   const [spendingEntries, setSpendingEntries] = useState<SpendingEntry[]>([])
@@ -184,24 +173,72 @@ export default function DashboardPage() {
       // Step 2: Fetch income entries (30%)
       const incomePromise = fetch("/api/income?userId=" + user.uid)
         .then(res => res.json())
-        .then(data => {
-          setIncomeEntries(data.entries || [])
+        .then(async data => {
+          let entries = data.entries || []
+          if (passphrase) {
+            entries = await Promise.all(entries.map(async (e: any) => {
+              if (e.__encrypted && e.encrypted) {
+                try {
+                  const dec = await decryptPayload(e.encrypted)
+                  return { ...e, ...dec, amount: Number(dec.amount) || 0 }
+                } catch {
+                  return { ...e, source: "Encrypted", amount: 0 }
+                }
+              }
+              return e
+            }))
+          } else {
+            entries = entries.map((e: any) => e.__encrypted ? { ...e, source: "Encrypted", amount: 0 } : e)
+          }
+          setIncomeEntries(entries)
           setLoadingProgress(30)
         })
 
       // Step 3: Fetch spending entries (50%)
       const spendingPromise = fetch("/api/spending?userId=" + user.uid)
         .then(res => res.json())
-        .then(data => {
-          setSpendingEntries(data.entries || [])
+        .then(async data => {
+          let entries = data.entries || []
+          if (passphrase) {
+            entries = await Promise.all(entries.map(async (e: any) => {
+              if (e.__encrypted && e.encrypted) {
+                try {
+                  const dec = await decryptPayload(e.encrypted)
+                  return { ...e, ...dec, amount: Number(dec.amount) || 0 }
+                } catch {
+                  return { ...e, reason: "Encrypted", amount: 0 }
+                }
+              }
+              return e
+            }))
+          } else {
+            entries = entries.map((e: any) => e.__encrypted ? { ...e, reason: "Encrypted", amount: 0 } : e)
+          }
+          setSpendingEntries(entries)
           setLoadingProgress(50)
         })
 
       // Step 4: Fetch loan entries (70%)
       const loansPromise = fetch("/api/loans?userId=" + user.uid)
         .then(res => res.json())
-        .then(data => {
-          setLoanEntries(data.entries?.map((loan: any) => ({ ...loan, id: loan._id })) || [])
+        .then(async data => {
+          let entries = data.entries?.map((loan: any) => ({ ...loan, id: loan._id })) || []
+          if (passphrase) {
+            entries = await Promise.all(entries.map(async (e: any) => {
+              if (e.__encrypted && e.encrypted) {
+                try {
+                  const dec = await decryptPayload(e.encrypted)
+                  return { ...e, ...dec, amount: Number(dec.amount) || 0 }
+                } catch {
+                  return { ...e, description: "Encrypted", amount: 0 }
+                }
+              }
+              return e
+            }))
+          } else {
+            entries = entries.map((e: any) => e.__encrypted ? { ...e, description: "Encrypted", amount: 0 } : e)
+          }
+          setLoanEntries(entries)
           setLoadingProgress(70)
         })
 
@@ -218,12 +255,12 @@ export default function DashboardPage() {
       // Step 6: Simulate chart preparation (95%)
       setTimeout(() => {
         setLoadingProgress(95)
-        
+
         // Step 7: Final chart loading (100%)
         setTimeout(() => {
           setChartLoading(false)
           setLoadingProgress(100)
-          
+
           // Complete loading after a brief delay
           setTimeout(() => {
             setIsPageLoading(false)
@@ -245,6 +282,13 @@ export default function DashboardPage() {
       loadAllData()
     }
   }, [user?.uid])
+
+  // Re-decrypt data when passphrase changes
+  useEffect(() => {
+    if (user?.uid) {
+      loadAllData()
+    }
+  }, [passphrase])
 
   // Add this function to fetch news
   const fetchNews = async () => {
@@ -320,16 +364,32 @@ export default function DashboardPage() {
     if (matchedClient) clientId = matchedClient.clientId
 
     try {
-      const res = await fetch("/api/income", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      let body: any
+      if (passphrase) {
+        const encrypted = await encryptPayload({
+          source: incomeSource,
+          amount: Number.parseFloat(incomeAmount),
+          date: new Date().toISOString(),
+          clientId,
+        })
+        body = {
+          __encrypted: true,
+          encrypted,
+          userId: user?.uid,
+        }
+      } else {
+        body = {
           source: incomeSource,
           amount: Number.parseFloat(incomeAmount),
           date: new Date().toISOString(),
           clientId,
           userId: user?.uid,
-        }),
+        }
+      }
+      const res = await fetch("/api/income", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -357,7 +417,7 @@ export default function DashboardPage() {
     }
   }
 
-  const addSpending = () => {
+  const addSpending = async () => {
     if (!spendingReason || !spendingAmount) {
       toast({
         title: "Error",
@@ -376,41 +436,55 @@ export default function DashboardPage() {
       return
     }
     // Store spending entry in DB
-    fetch("/api/spending", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        reason: spendingReason,
-        amount: Number.parseFloat(spendingAmount),
-        date: new Date().toISOString(),
-        userId: user.uid,
-      }),
-    })
-      .then(async (res) => {
-        const data = await res.json()
-        if (!res.ok) {
-          toast({
-            title: "Error",
-            description: data.error || "Failed to store spending entry.",
-            variant: "destructive",
-          })
-          return
-        }
-        toast({
-          title: "Success",
-          description: "Spending entry added successfully!",
+    try {
+      let body: any
+      if (passphrase) {
+        const encrypted = await encryptPayload({
+          reason: spendingReason,
+          amount: Number.parseFloat(spendingAmount),
+          date: new Date().toISOString(),
         })
-        setSpendingReason("")
-        setSpendingAmount("")
-        loadAllData()
+        body = {
+          __encrypted: true,
+          encrypted,
+          userId: user.uid,
+        }
+      } else {
+        body = {
+          reason: spendingReason,
+          amount: Number.parseFloat(spendingAmount),
+          date: new Date().toISOString(),
+          userId: user.uid,
+        }
+      }
+      const res = await fetch("/api/spending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       })
-      .catch(() => {
+      const data = await res.json()
+      if (!res.ok) {
         toast({
           title: "Error",
-          description: "Failed to store spending entry.",
+          description: data.error || "Failed to store spending entry.",
           variant: "destructive",
         })
+        return
+      }
+      toast({
+        title: "Success",
+        description: "Spending entry added successfully!",
       })
+      setSpendingReason("")
+      setSpendingAmount("")
+      loadAllData()
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to store spending entry.",
+        variant: "destructive",
+      })
+    }
   }
 
   const addLoan = async () => {
@@ -423,16 +497,32 @@ export default function DashboardPage() {
       return
     }
     try {
-      const res = await fetch("/api/loans", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      let body: any
+      if (passphrase) {
+        const encrypted = await encryptPayload({
+          description: loanDescription,
+          amount: Number.parseFloat(loanAmount),
+          date: new Date().toISOString(),
+        })
+        body = {
+          __encrypted: true,
+          encrypted,
+          isPaid: false,
+          userId: user?.uid,
+        }
+      } else {
+        body = {
           amount: Number.parseFloat(loanAmount),
           description: loanDescription,
           isPaid: false,
           date: new Date().toISOString(),
           userId: user?.uid,
-        }),
+        }
+      }
+      const res = await fetch("/api/loans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -520,40 +610,18 @@ export default function DashboardPage() {
     }
   }
 
-  // Calculate totals with memoization
-  const totalIncome = useMemo(() =>
-    incomeEntries.reduce((sum, entry) => sum + entry.amount, 0),
-    [incomeEntries]
-  )
+  // Calculate totals
+  const totalIncome = incomeEntries.reduce((sum, entry) => sum + entry.amount, 0)
+  const totalSpending = spendingEntries.reduce((sum, entry) => sum + entry.amount, 0)
+  const totalProfit = totalIncome - totalSpending
+  const totalLoans = loanEntries.filter((loan) => !loan.isPaid).reduce((sum, loan) => sum + loan.amount, 0)
 
-  const totalSpending = useMemo(() =>
-    spendingEntries.reduce((sum, entry) => sum + entry.amount, 0),
-    [spendingEntries]
-  )
+  // Get unique sources and reasons for filters
+  const uniqueSources = [...new Set(incomeEntries.map((entry) => entry.source))]
+  const uniqueReasons = [...new Set(spendingEntries.map((entry) => entry.reason))]
 
-  const totalProfit = useMemo(() =>
-    totalIncome - totalSpending,
-    [totalIncome, totalSpending]
-  )
-
-  const totalLoans = useMemo(() =>
-    loanEntries.filter((loan) => !loan.isPaid).reduce((sum, loan) => sum + loan.amount, 0),
-    [loanEntries]
-  )
-
-  // Get unique sources and reasons for filters with memoization
-  const uniqueSources = useMemo(() =>
-    [...new Set(incomeEntries.map((entry) => entry.source))],
-    [incomeEntries]
-  )
-
-  const uniqueReasons = useMemo(() =>
-    [...new Set(spendingEntries.map((entry) => entry.reason))],
-    [spendingEntries]
-  )
-
-  // Filter data based on time period with memoization
-  const filteredData = useMemo(() => {
+  // Filter data based on time period
+  const getFilteredData = () => {
     const now = new Date()
     const startDate = new Date()
 
@@ -590,12 +658,12 @@ export default function DashboardPage() {
     )
 
     return { filteredIncome, filteredSpending }
-  }, [timeFilter, incomeEntries, spendingEntries, sourceFilter, reasonFilter])
+  }
 
   // Prepare chart data based on selected time unit
   const getChartData = () => {
-    const { filteredIncome, filteredSpending } = filteredData
-    
+    const { filteredIncome, filteredSpending } = getFilteredData()
+
     console.log(`Grouping data by: ${timeUnit}`)
     console.log("Filtered income entries:", filteredIncome.length)
     console.log("Filtered spending entries:", filteredSpending.length)
@@ -603,11 +671,11 @@ export default function DashboardPage() {
     if (timeUnit === "day") {
       // Group by day
       const dailyData: { [key: string]: { income: number; spending: number; date: Date } } = {}
-      
+
       // Generate all days in the time period
       const now = new Date()
       const startDate = new Date()
-      
+
       switch (timeFilter) {
         case "weekly":
           startDate.setDate(now.getDate() - 7 * 4)
@@ -618,12 +686,12 @@ export default function DashboardPage() {
         default:
           startDate.setDate(now.getDate() - 30) // Default to 30 days for daily view
       }
-      
+
       for (let d = new Date(startDate); d <= now; d.setDate(d.getDate() + 1)) {
         const dayLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
         dailyData[dayLabel] = { income: 0, spending: 0, date: new Date(d) }
       }
-      
+
       // Add actual data
       filteredIncome.forEach((entry) => {
         const dayLabel = new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
@@ -631,14 +699,14 @@ export default function DashboardPage() {
           dailyData[dayLabel].income += entry.amount
         }
       })
-      
+
       filteredSpending.forEach((entry) => {
         const dayLabel = new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
         if (dailyData[dayLabel]) {
           dailyData[dayLabel].spending += entry.amount
         }
       })
-      
+
       return Object.entries(dailyData)
         .map(([day, data]) => ({
           period: day,
@@ -647,15 +715,15 @@ export default function DashboardPage() {
           profit: data.income - data.spending,
         }))
         .sort((a, b) => dailyData[a.period].date.getTime() - dailyData[b.period].date.getTime())
-        
+
     } else if (timeUnit === "week") {
       // Group by week
       const weekData: { [key: string]: { income: number; spending: number; weekStart: Date } } = {}
-      
+
       // Generate weeks based on time filter
       const today = new Date()
       let weeksToShow = 4
-      
+
       switch (timeFilter) {
         case "1month":
           weeksToShow = 4
@@ -669,18 +737,18 @@ export default function DashboardPage() {
         default:
           weeksToShow = 4
       }
-      
+
       for (let i = weeksToShow - 1; i >= 0; i--) {
         const weekStart = new Date(today)
         weekStart.setDate(today.getDate() - today.getDay() - (i * 7))
         const weekLabel = `Week ${weekStart.getMonth() + 1}/${weekStart.getDate()}`
-        weekData[weekLabel] = { 
-          income: 0, 
-          spending: 0, 
-          weekStart: new Date(weekStart) 
+        weekData[weekLabel] = {
+          income: 0,
+          spending: 0,
+          weekStart: new Date(weekStart)
         }
       }
-      
+
       // Add actual data
       filteredIncome.forEach((entry) => {
         const d = new Date(entry.date)
@@ -691,7 +759,7 @@ export default function DashboardPage() {
           weekData[weekLabel].income += entry.amount
         }
       })
-      
+
       filteredSpending.forEach((entry) => {
         const d = new Date(entry.date)
         const weekStart = new Date(d)
@@ -701,7 +769,7 @@ export default function DashboardPage() {
           weekData[weekLabel].spending += entry.amount
         }
       })
-      
+
       return Object.entries(weekData)
         .map(([week, data]) => ({
           period: week,
@@ -710,23 +778,23 @@ export default function DashboardPage() {
           profit: data.income - data.spending,
         }))
         .sort((a, b) => weekData[a.period].weekStart.getTime() - weekData[b.period].weekStart.getTime())
-        
+
     } else {
       // Group by month (default)
       const monthlyData: { [key: string]: { income: number; spending: number } } = {}
-      
+
       filteredIncome.forEach((entry) => {
         const month = new Date(entry.date).toLocaleDateString("en-US", { year: "numeric", month: "short" })
         if (!monthlyData[month]) monthlyData[month] = { income: 0, spending: 0 }
         monthlyData[month].income += entry.amount
       })
-      
+
       filteredSpending.forEach((entry) => {
         const month = new Date(entry.date).toLocaleDateString("en-US", { year: "numeric", month: "short" })
         if (!monthlyData[month]) monthlyData[month] = { income: 0, spending: 0 }
         monthlyData[month].spending += entry.amount
       })
-      
+
       return Object.entries(monthlyData)
         .map(([month, data]) => ({
           period: month,
@@ -739,7 +807,7 @@ export default function DashboardPage() {
   }
 
   const chartData = getChartData()
-  
+
   // Debug logging for chart data
   console.log(`Chart data for ${timeUnit} view:`, chartData)
 
@@ -770,713 +838,681 @@ export default function DashboardPage() {
         <div className="relative min-h-screen">
           <FloatingElements />
 
-        {/* Loading Screen */}
-        {isPageLoading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-cyan-900"
-          >
-            <div className="text-center space-y-8">
-              {/* Animated Logo/Icon */}
-              <motion.div
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                className="relative"
-              >
-                <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-2xl">
-                  <TrendingUp className="h-12 w-12 text-white" />
-                </div>
-                {/* Pulsing rings */}
+          {/* Loading Screen */}
+          {isPageLoading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-cyan-900"
+            >
+              <div className="text-center space-y-8">
+                {/* Animated Logo/Icon */}
                 <motion.div
-                  animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0, 0.3] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute inset-0 rounded-full border-2 border-cyan-400/30"
-                />
-                <motion.div
-                  animate={{ scale: [1, 2, 1], opacity: [0.2, 0, 0.2] }}
-                  transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
-                  className="absolute inset-0 rounded-full border border-blue-400/20"
-                />
-              </motion.div>
-
-              {/* Loading Text */}
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className="space-y-4"
-              >
-                <h2 className="text-2xl font-bold text-white">Loading Your Dashboard</h2>
-                <p className="text-cyan-200">Preparing your business analytics...</p>
-              </motion.div>
-
-              {/* Progress Bar */}
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
-                className="w-80 max-w-md mx-auto"
-              >
-                <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                  className="relative"
+                >
+                  <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-2xl">
+                    <TrendingUp className="h-12 w-12 text-white" />
+                  </div>
+                  {/* Pulsing rings */}
                   <motion.div
-                    className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${loadingProgress}%` }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0, 0.3] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute inset-0 rounded-full border-2 border-cyan-400/30"
                   />
-                </div>
-                <div className="text-center mt-3">
-                  <span className="text-sm text-cyan-200">{loadingProgress}% Complete</span>
-                </div>
-              </motion.div>
+                  <motion.div
+                    animate={{ scale: [1, 2, 1], opacity: [0.2, 0, 0.2] }}
+                    transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
+                    className="absolute inset-0 rounded-full border border-blue-400/20"
+                  />
+                </motion.div>
 
-              {/* Loading Steps */}
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.7 }}
-                className="text-center space-y-2"
-              >
-                <div className={`text-sm transition-colors duration-300 ${
-                  loadingProgress >= 10 ? 'text-cyan-300' : 'text-white/50'
-                }`}>
-                  {loadingProgress >= 10 ? '✓' : '○'} Loading company data
-                </div>
-                <div className={`text-sm transition-colors duration-300 ${
-                  loadingProgress >= 30 ? 'text-cyan-300' : 'text-white/50'
-                }`}>
-                  {loadingProgress >= 30 ? '✓' : '○'} Fetching income records
-                </div>
-                <div className={`text-sm transition-colors duration-300 ${
-                  loadingProgress >= 50 ? 'text-cyan-300' : 'text-white/50'
-                }`}>
-                  {loadingProgress >= 50 ? '✓' : '○'} Processing expenses
-                </div>
-                <div className={`text-sm transition-colors duration-300 ${
-                  loadingProgress >= 70 ? 'text-cyan-300' : 'text-white/50'
-                }`}>
-                  {loadingProgress >= 70 ? '✓' : '○'} Analyzing loans
-                </div>
-                <div className={`text-sm transition-colors duration-300 ${
-                  loadingProgress >= 85 ? 'text-cyan-300' : 'text-white/50'
-                }`}>
-                  {loadingProgress >= 85 ? '✓' : '○'} Preparing client data
-                </div>
-                <div className={`text-sm transition-colors duration-300 ${
-                  loadingProgress >= 95 ? 'text-cyan-300' : 'text-white/50'
-                }`}>
-                  {loadingProgress >= 95 ? '✓' : '○'} Generating charts
-                </div>
-              </motion.div>
-            </div>
-          </motion.div>
-        )}
+                {/* Loading Text */}
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 0.3 }}
+                  className="space-y-4"
+                >
+                  <h2 className="text-2xl font-bold text-white">Loading Your Dashboard</h2>
+                  <p className="text-cyan-200">Preparing your business analytics...</p>
+                </motion.div>
 
-        {/* Main Content */}
-        {!isPageLoading && (
-          <motion.div className="space-y-6" variants={containerVariants} initial="hidden" animate="visible">
-            {/* Welcome Section */}
-            <motion.div variants={itemVariants}>
-              <MagazineCard
-                title={`Welcome back, ${companyName}!`}
-                description="Here's an overview of your business analytics dashboard."
-                icon={TrendingUp}
-                gradient="from-blue-600 to-purple-600"
-              />
-            </motion.div>
+                {/* Progress Bar */}
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 0.5 }}
+                  className="w-80 max-w-md mx-auto"
+                >
+                  <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${loadingProgress}%` }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                  </div>
+                  <div className="text-center mt-3">
+                    <span className="text-sm text-cyan-200">{loadingProgress}% Complete</span>
+                  </div>
+                </motion.div>
 
-        {/* Download Report Section */}
-        <motion.div variants={itemVariants}>
-          <Card className="glow-card backdrop-blur-sm shadow-2xl p-10 rounded-lg">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Export Reports</h3>
-                  <p className="text-gray-600 dark:text-gray-300">
-                    Generate comprehensive PDF reports with your financial data, charts, and analytics.
-                  </p>
-                </div>
-                <DownloadReportDialog
-                  companyName={user?.companyName || "Your Company"}
-                  incomeEntries={incomeEntries}
-                  spendingEntries={spendingEntries}
-                  totalIncome={totalIncome}
-                  totalSpending={totalSpending}
-                  totalProfit={totalProfit}
-                />
+                {/* Loading Steps */}
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 0.7 }}
+                  className="text-center space-y-2"
+                >
+                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 10 ? 'text-cyan-300' : 'text-white/50'
+                    }`}>
+                    {loadingProgress >= 10 ? '✓' : '○'} Loading company data
+                  </div>
+                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 30 ? 'text-cyan-300' : 'text-white/50'
+                    }`}>
+                    {loadingProgress >= 30 ? '✓' : '○'} Fetching income records
+                  </div>
+                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 50 ? 'text-cyan-300' : 'text-white/50'
+                    }`}>
+                    {loadingProgress >= 50 ? '✓' : '○'} Processing expenses
+                  </div>
+                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 70 ? 'text-cyan-300' : 'text-white/50'
+                    }`}>
+                    {loadingProgress >= 70 ? '✓' : '○'} Analyzing loans
+                  </div>
+                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 85 ? 'text-cyan-300' : 'text-white/50'
+                    }`}>
+                    {loadingProgress >= 85 ? '✓' : '○'} Preparing client data
+                  </div>
+                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 95 ? 'text-cyan-300' : 'text-white/50'
+                    }`}>
+                    {loadingProgress >= 95 ? '✓' : '○'} Generating charts
+                  </div>
+                </motion.div>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+            </motion.div>
+          )}
 
-        {/* Stats Cards */}
-        <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" variants={containerVariants}>
-          <motion.div variants={itemVariants}>
-            <MagazineCard
-              title="Total Income"
-              value={`$${totalIncome.toLocaleString()}`}
-              description="+12% from last month"
-              icon={TrendingUp}
-              gradient="from-green-500 to-emerald-500"
-              className="hover:scale-105 transition-all duration-300 group shadow-xl"
-            />
-          </motion.div>
+          {/* Main Content */}
+          {!isPageLoading && (
+            <motion.div className="space-y-6" variants={containerVariants} initial="hidden" animate="visible">
+              {/* Welcome Section */}
+              <motion.div variants={itemVariants}>
+                <MagazineCard
+                  title={`Welcome back, ${companyName}!`}
+                  description="Here's an overview of your business analytics dashboard."
+                  icon={TrendingUp}
+                  gradient="from-blue-600 to-purple-600"
+                />
+              </motion.div>
 
-          <motion.div variants={itemVariants}>
-            <MagazineCard
-              title="Total Spending"
-              value={`$${totalSpending.toLocaleString()}`}
-              description="-5% from last month"
-              icon={TrendingDown}
-              gradient="from-red-500 to-pink-500"
-              className="hover:scale-105 transition-all duration-300 group shadow-xl"
-            />
-          </motion.div>
-
-          <motion.div variants={itemVariants}>
-            <MagazineCard
-              title="Net Profit"
-              value={`$${totalProfit.toLocaleString()}`}
-              description={totalProfit >= 0 ? "+18% from last month" : "-8% from last month"}
-              icon={DollarSign}
-              gradient="from-blue-500 to-cyan-500"
-              className="hover:scale-105 transition-all duration-300 group shadow-xl"
-            />
-          </motion.div>
-
-          <motion.div variants={itemVariants}>
-            <MagazineCard
-              title="Outstanding Loans"
-              value={`$${totalLoans.toLocaleString()}`}
-              description={`${loanEntries.filter((l) => !l.isPaid).length} active loans`}
-              icon={CreditCard}
-              gradient="from-orange-500 to-red-500"
-              className="hover:scale-105 transition-all duration-300 group shadow-xl"
-            />
-          </motion.div>
-        </motion.div>
-
-        {/* Main Content Tabs */}
-        <motion.div variants={itemVariants}>
-          <Card className="glow-card backdrop-blur-sm shadow-2xl p-10 rounded-lg">
-            <CardContent className="p-6">
-              <Tabs defaultValue="analytics" className="space-y-6">
-                {/* Update the TabsList to include the news tab */}
-                <TabsList className="grid w-full grid-cols-4 glow-card backdrop-blur shadow-lg">
-                  <TabsTrigger value="analytics" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Analytics</TabsTrigger>
-                  <TabsTrigger value="income" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Income</TabsTrigger>
-                  <TabsTrigger value="spending" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Spending</TabsTrigger>
-                  <TabsTrigger value="enhanced" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Enhanced</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="analytics" className="space-y-6">
-                  {/* Filters Card */}
-                  <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 backdrop-blur glow-card shadow-lg">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-                        <Filter className="h-5 w-5" />
-                        Filters & Controls
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-wrap gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 dark:text-gray-300">Time Period</Label>
-                        <Select value={timeFilter} onValueChange={setTimeFilter}>
-                          <SelectTrigger className="w-40 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="1month">Last Month</SelectItem>
-                            <SelectItem value="6months">Last 6 Months</SelectItem>
-                            <SelectItem value="1year">Last Year</SelectItem>
-                            <SelectItem value="5years">Last 5 Years</SelectItem>
-                            <SelectItem value="10years">Last 10 Years</SelectItem>
-                          </SelectContent>
-                        </Select>
+              {/* Download Report Section */}
+              <motion.div variants={itemVariants}>
+                <Card className="glow-card backdrop-blur-sm shadow-2xl p-10 rounded-lg">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Export Reports</h3>
+                        <p className="text-gray-600 dark:text-gray-300">
+                          Generate comprehensive PDF reports with your financial data, charts, and analytics.
+                        </p>
                       </div>
+                      <DownloadReportDialog
+                        companyName={companyName || "Your Company"}
+                        incomeEntries={incomeEntries}
+                        spendingEntries={spendingEntries}
+                        totalIncome={totalIncome}
+                        totalSpending={totalSpending}
+                        totalProfit={totalProfit}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
 
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 dark:text-gray-300">View By</Label>
-                        <Select value={timeUnit} onValueChange={setTimeUnit}>
-                          <SelectTrigger className="w-40 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="day">Day by Day</SelectItem>
-                            <SelectItem value="week">Week by Week</SelectItem>
-                            <SelectItem value="month">Month by Month</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+              {/* Stats Cards */}
+              <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" variants={containerVariants}>
+                <motion.div variants={itemVariants}>
+                  <MagazineCard
+                    title="Total Income"
+                    value={`$${totalIncome.toLocaleString()}`}
+                    description="+12% from last month"
+                    icon={TrendingUp}
+                    gradient="from-green-500 to-emerald-500"
+                    className="hover:scale-105 transition-all duration-300 group shadow-xl"
+                  />
+                </motion.div>
 
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 dark:text-gray-300">Income Source</Label>
-                        <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                          <SelectTrigger className="w-40 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Sources</SelectItem>
-                            {uniqueSources.map((source) => (
-                              <SelectItem key={source} value={source}>
-                                {source}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                <motion.div variants={itemVariants}>
+                  <MagazineCard
+                    title="Total Spending"
+                    value={`$${totalSpending.toLocaleString()}`}
+                    description="-5% from last month"
+                    icon={TrendingDown}
+                    gradient="from-red-500 to-pink-500"
+                    className="hover:scale-105 transition-all duration-300 group shadow-xl"
+                  />
+                </motion.div>
 
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 dark:text-gray-300">Spending Reason</Label>
-                        <Select value={reasonFilter} onValueChange={setReasonFilter}>
-                          <SelectTrigger className="w-40 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Reasons</SelectItem>
-                            {uniqueReasons.map((reason) => (
-                              <SelectItem key={reason} value={reason}>
-                                {reason}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardContent>
-                  </Card>
+                <motion.div variants={itemVariants}>
+                  <MagazineCard
+                    title="Net Profit"
+                    value={`$${totalProfit.toLocaleString()}`}
+                    description={totalProfit >= 0 ? "+18% from last month" : "-8% from last month"}
+                    icon={DollarSign}
+                    gradient="from-blue-500 to-cyan-500"
+                    className="hover:scale-105 transition-all duration-300 group shadow-xl"
+                  />
+                </motion.div>
 
-                  {/* Update the Chart Card section to include loading state */}
-                  <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
-                    <CardHeader>
-                      <CardTitle className="text-gray-900 dark:text-white">Financial Overview</CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-300">Track your income, spending, and profit over time</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-80 relative">
-                        {chartLoading ? (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="loading-dots">
-                              <div className="dot"></div>
-                              <div className="dot"></div>
-                              <div className="dot"></div>
-                            </div>
-                          </div>
-                        ) : chartData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
-                              <XAxis dataKey="period" stroke="#6b7280" fontSize={12} />
-                              <YAxis stroke="#6b7280" fontSize={12} tickFormatter={(value: number) => `$${value}`} />
-                              <Tooltip
-                                formatter={(value: number, name: string) => [`$${Number(value).toLocaleString()}`, name]}
-                                labelStyle={{ color: "#374151" }}
-                                contentStyle={{
-                                  backgroundColor: "rgba(255, 255, 255, 0.95)",
-                                  border: "1px solid #e5e7eb",
-                                  borderRadius: "8px",
-                                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                                }}
-                              />
-                              <Legend />
-                              <Line
-                                type="monotone"
-                                dataKey="income"
-                                stroke="#10b981"
-                                strokeWidth={3}
-                                name="Income"
-                                dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
-                                activeDot={{ r: 6, stroke: "#10b981", strokeWidth: 2 }}
-                              />
-                              <Line
-                                type="monotone"
-                                dataKey="spending"
-                                stroke="#ef4444"
-                                strokeWidth={3}
-                                name="Spending"
-                                dot={{ fill: "#ef4444", strokeWidth: 2, r: 4 }}
-                                activeDot={{ r: 6, stroke: "#ef4444", strokeWidth: 2 }}
-                              />
-                              <Line
-                                type="monotone"
-                                dataKey="profit"
-                                stroke="#3b82f6"
-                                strokeWidth={3}
-                                name="Profit"
-                                dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
-                                activeDot={{ r: 6, stroke: "#3b82f6", strokeWidth: 2 }}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center">
-                              <div className="text-gray-500 dark:text-gray-400 mb-2">No data available</div>
-                              <p className="text-sm text-gray-400 dark:text-gray-500">
-                                Add some income and spending entries to see the chart
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                <motion.div variants={itemVariants}>
+                  <MagazineCard
+                    title="Outstanding Loans"
+                    value={`$${totalLoans.toLocaleString()}`}
+                    description={`${loanEntries.filter((l) => !l.isPaid).length} active loans`}
+                    icon={CreditCard}
+                    gradient="from-orange-500 to-red-500"
+                    className="hover:scale-105 transition-all duration-300 group shadow-xl"
+                  />
+                </motion.div>
+              </motion.div>
 
-                  {/* Loans Card */}
-                  <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20 ">
-                    <CardHeader>
-                      <CardTitle className="text-gray-900 dark:text-white">Loan Management</CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-300">Track and manage your outstanding loans</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
-                        <CardContent className="p-4">
-                          <div className="flex gap-4">
-                            <div className="flex-1">
-                              <Label htmlFor="loanAmount" className="text-gray-700 dark:text-gray-300">Loan Amount</Label>
-                              <Input
-                                id="loanAmount"
-                                type="number"
-                                placeholder="Enter loan amount"
-                                value={loanAmount}
-                                onChange={(e) => setLoanAmount(e.target.value)}
-                                className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <Label htmlFor="loanDescription" className="text-gray-700 dark:text-gray-300">Description</Label>
-                              <Input
-                                id="loanDescription"
-                                placeholder="Enter loan description"
-                                value={loanDescription}
-                                onChange={(e) => setLoanDescription(e.target.value)}
-                                className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                              />
-                            </div>
-                            <div className="flex items-end">
-                              <Button onClick={addLoan} className="gradient-bg text-white">
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add Loan
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+              {/* Main Content Tabs */}
+              <motion.div variants={itemVariants}>
+                <Card className="glow-card backdrop-blur-sm shadow-2xl p-10 rounded-lg">
+                  <CardContent className="p-6">
+                    <Tabs defaultValue="analytics" className="space-y-6">
+                      {/* Update the TabsList to include the news tab */}
+                      <TabsList className="grid w-full grid-cols-4 glow-card backdrop-blur shadow-lg">
+                        <TabsTrigger value="analytics" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Analytics</TabsTrigger>
+                        <TabsTrigger value="income" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Income</TabsTrigger>
+                        <TabsTrigger value="spending" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Spending</TabsTrigger>
+                        <TabsTrigger value="enhanced" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Enhanced</TabsTrigger>
+                      </TabsList>
 
-                      <div className="space-y-2">
-                        {loanEntries.map((loan) => (
-                          <motion.div
-                            key={loan.id}
-                            className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-900 dark:text-white">{loan.description}</div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                ${loan.amount.toLocaleString()} • {new Date(loan.date).toLocaleDateString()}
-                              </div>
+                      <TabsContent value="analytics" className="space-y-6">
+                        {/* Filters Card */}
+                        <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 backdrop-blur glow-card shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+                              <Filter className="h-5 w-5" />
+                              Filters & Controls
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="flex flex-wrap gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-gray-700 dark:text-gray-300">Time Period</Label>
+                              <Select value={timeFilter} onValueChange={setTimeFilter}>
+                                <SelectTrigger className="w-40 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="weekly">Weekly</SelectItem>
+                                  <SelectItem value="1month">Last Month</SelectItem>
+                                  <SelectItem value="6months">Last 6 Months</SelectItem>
+                                  <SelectItem value="1year">Last Year</SelectItem>
+                                  <SelectItem value="5years">Last 5 Years</SelectItem>
+                                  <SelectItem value="10years">Last 10 Years</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
-                            <div className="flex items-center gap-2">
-                              {loan.isPaid ? (
-                                <Badge
-                                  variant="secondary"
-                                  className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                >
-                                  Paid
-                                </Badge>
+                            <div className="ml-auto flex items-end gap-2" />
+
+                            <div className="space-y-2">
+                              <Label className="text-gray-700 dark:text-gray-300">View By</Label>
+                              <Select value={timeUnit} onValueChange={setTimeUnit}>
+                                <SelectTrigger className="w-40 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="day">Day by Day</SelectItem>
+                                  <SelectItem value="week">Week by Week</SelectItem>
+                                  <SelectItem value="month">Month by Month</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-gray-700 dark:text-gray-300">Income Source</Label>
+                              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                                <SelectTrigger className="w-40 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Sources</SelectItem>
+                                  {uniqueSources.map((source) => (
+                                    <SelectItem key={source} value={source}>
+                                      {source}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-gray-700 dark:text-gray-300">Spending Reason</Label>
+                              <Select value={reasonFilter} onValueChange={setReasonFilter}>
+                                <SelectTrigger className="w-40 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Reasons</SelectItem>
+                                  {uniqueReasons.map((reason) => (
+                                    <SelectItem key={reason} value={reason}>
+                                      {reason}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Update the Chart Card section to include loading state */}
+                        <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
+                          <CardHeader>
+                            <CardTitle className="text-gray-900 dark:text-white">Financial Overview</CardTitle>
+                            <CardDescription className="text-gray-600 dark:text-gray-300">Track your income, spending, and profit over time</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div id="financial-overview-chart" className="h-80 relative">
+                              {chartLoading ? (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="loading-dots">
+                                    <div className="dot"></div>
+                                    <div className="dot"></div>
+                                    <div className="dot"></div>
+                                  </div>
+                                </div>
+                              ) : chartData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+                                    <XAxis dataKey="period" stroke="#6b7280" fontSize={12} />
+                                    <YAxis stroke="#6b7280" fontSize={12} tickFormatter={(value: number) => `$${value}`} />
+                                    <Tooltip
+                                      formatter={(value: number, name: string) => [`$${Number(value).toLocaleString()}`, name]}
+                                      labelStyle={{ color: "#374151" }}
+                                      contentStyle={{
+                                        backgroundColor: "rgba(255, 255, 255, 0.95)",
+                                        border: "1px solid #e5e7eb",
+                                        borderRadius: "8px",
+                                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                                      }}
+                                    />
+                                    <Legend />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="income"
+                                      stroke="#10b981"
+                                      strokeWidth={3}
+                                      name="Income"
+                                      dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
+                                      activeDot={{ r: 6, stroke: "#10b981", strokeWidth: 2 }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="spending"
+                                      stroke="#ef4444"
+                                      strokeWidth={3}
+                                      name="Spending"
+                                      dot={{ fill: "#ef4444", strokeWidth: 2, r: 4 }}
+                                      activeDot={{ r: 6, stroke: "#ef4444", strokeWidth: 2 }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="profit"
+                                      stroke="#3b82f6"
+                                      strokeWidth={3}
+                                      name="Profit"
+                                      dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
+                                      activeDot={{ r: 6, stroke: "#3b82f6", strokeWidth: 2 }}
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
                               ) : (
-                                <>
-                                  <Button size="sm" variant="outline" onClick={() => markLoanAsPaid(loan.id)} className="border-gray-300 dark:border-gray-600">
-                                    <CheckCircle className="h-4 w-4 mr-1" />
-                                    Mark Paid
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={() => deleteLoan(loan.id)} className="border-gray-300 dark:border-gray-600">
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="text-center">
+                                    <div className="text-gray-500 dark:text-gray-400 mb-2">No data available</div>
+                                    <p className="text-sm text-gray-400 dark:text-gray-500">
+                                      Add some income and spending entries to see the chart
+                                    </p>
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          </motion.div>
-                        ))}
-                        {loanEntries.length === 0 && (
-                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">No loans added yet</div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                          </CardContent>
+                        </Card>
 
-                <TabsContent value="income" className="space-y-6">
-                  <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
-                    <CardHeader>
-                      <CardTitle className="text-gray-900 dark:text-white">Add Income</CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-300">Record new income from clients or other sources</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
-                        <CardContent className="p-4">
-                          <div className="flex gap-4">
-                            <div className="flex-1">
-                              <Label htmlFor="incomeSource" className="text-gray-700 dark:text-gray-300">Source</Label>
-                              <div className="relative">
-                                <Input
-                                  id="incomeSource"
-                                  placeholder="Client name or income source"
-                                  value={incomeSource}
-                                  onChange={(e) => {
-                                    setIncomeSource(e.target.value)
-                                    setShowSuggestions(true)
-                                  }}
-                                  onFocus={() => setShowSuggestions(true)}
-                                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                                  autoComplete="off"
-                                  className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                                />
-                                {showSuggestions && clientSuggestions.length > 0 && (
-                                  <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-auto">
-                                    {clientSuggestions.map((client) => (
-                                      <div
-                                        key={client.clientId}
-                                        className="px-3 py-2 cursor-pointer hover:bg-gray-100 text-gray-900 suggestion-item"
-                                        onMouseDown={() => {
-                                          setIncomeSource(client.name)
-                                          setShowSuggestions(false)
-                                        }}
-                                      >
-                                        <span className="font-medium text-gray-900">{client.name}</span>
-                                        <span className="ml-2 text-xs text-gray-500">{client.company}</span>
-                                      </div>
-                                    ))}
+                        {/* Loans Card */}
+                        <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20 ">
+                          <CardHeader>
+                            <CardTitle className="text-gray-900 dark:text-white">Loan Management</CardTitle>
+                            <CardDescription className="text-gray-600 dark:text-gray-300">Track and manage your outstanding loans</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
+                              <CardContent className="p-4">
+                                <div className="flex gap-4">
+                                  <div className="flex-1">
+                                    <Label htmlFor="loanAmount" className="text-gray-700 dark:text-gray-300">Loan Amount</Label>
+                                    <Input
+                                      id="loanAmount"
+                                      type="number"
+                                      placeholder="Enter loan amount"
+                                      value={loanAmount}
+                                      onChange={(e) => setLoanAmount(e.target.value)}
+                                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                                    />
                                   </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex-1">
-                              <Label htmlFor="incomeAmount" className="text-gray-700 dark:text-gray-300">Amount</Label>
-                              <Input
-                                id="incomeAmount"
-                                type="number"
-                                placeholder="Enter amount"
-                                value={incomeAmount}
-                                onChange={(e) => setIncomeAmount(e.target.value)}
-                                className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                              />
-                            </div>
-                            <div className="flex items-end">
-                              <Button onClick={addIncome} className="gradient-bg text-white">
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add Income
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <div className="space-y-2">
-                        <h3 className="font-medium text-gray-900 dark:text-white">Recent Income Entries</h3>
-                        {incomeEntries
-                          .slice(-5)
-                          .reverse()
-                          .map((entry) => (
-                            <motion.div
-                              key={entry.id}
-                              className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.3 }}
-                            >
-                              <div>
-                                <div className="font-medium text-gray-900 dark:text-white">{entry.source}</div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {new Date(entry.date).toLocaleDateString()}
+                                  <div className="flex-1">
+                                    <Label htmlFor="loanDescription" className="text-gray-700 dark:text-gray-300">Description</Label>
+                                    <Input
+                                      id="loanDescription"
+                                      placeholder="Enter loan description"
+                                      value={loanDescription}
+                                      onChange={(e) => setLoanDescription(e.target.value)}
+                                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                                    />
+                                  </div>
+                                  <div className="flex items-end">
+                                    <Button onClick={addLoan} className="gradient-bg text-white">
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Add Loan
+                                    </Button>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="text-lg font-semibold text-green-600 dark:text-green-400">
-                                +${entry.amount.toLocaleString()}
-                              </div>
-                            </motion.div>
-                          ))}
-                        {incomeEntries.length === 0 && (
-                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">No income entries yet</div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                              </CardContent>
+                            </Card>
 
-                <TabsContent value="spending" className="space-y-6">
-                  <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
-                    <CardHeader>
-                      <CardTitle className="text-gray-900 dark:text-white">Add Spending</CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-300">Record business expenses and spending</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
-                        <CardContent className="p-4">
-                          <div className="flex gap-4">
-                            <div className="flex-1">
-                              <Label htmlFor="spendingReason" className="text-gray-700 dark:text-gray-300">Reason</Label>
-                              <Input
-                                id="spendingReason"
-                                placeholder="Reason for spending"
-                                value={spendingReason}
-                                onChange={(e) => setSpendingReason(e.target.value)}
-                                className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                              />
+                            <div className="space-y-2">
+                              {loanEntries.map((loan) => (
+                                <motion.div
+                                  key={loan.id}
+                                  className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ duration: 0.3 }}
+                                >
+                                  <div className="flex-1">
+                                    <div className="font-medium text-gray-900 dark:text-white">{loan.description}</div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                      ${loan.amount.toLocaleString()} • {new Date(loan.date).toLocaleDateString()}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {loan.isPaid ? (
+                                      <Badge
+                                        variant="secondary"
+                                        className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                      >
+                                        Paid
+                                      </Badge>
+                                    ) : (
+                                      <>
+                                        <Button size="sm" variant="outline" onClick={() => markLoanAsPaid(loan.id)} className="border-gray-300 dark:border-gray-600">
+                                          <CheckCircle className="h-4 w-4 mr-1" />
+                                          Mark Paid
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => deleteLoan(loan.id)} className="border-gray-300 dark:border-gray-600">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              ))}
+                              {loanEntries.length === 0 && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">No loans added yet</div>
+                              )}
                             </div>
-                            <div className="flex-1">
-                              <Label htmlFor="spendingAmount" className="text-gray-700 dark:text-gray-300">Amount</Label>
-                              <Input
-                                id="spendingAmount"
-                                type="number"
-                                placeholder="Enter amount"
-                                value={spendingAmount}
-                                onChange={(e) => setSpendingAmount(e.target.value)}
-                                className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                              />
-                            </div>
-                            <div className="flex items-end">
-                              <Button onClick={addSpending} className="gradient-bg text-white">
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add Spending
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
 
-                      <div className="space-y-2">
-                        <h3 className="font-medium text-gray-900 dark:text-white">Recent Spending Entries</h3>
-                        {spendingEntries
-                          .slice(-5)
-                          .reverse()
-                          .map((entry) => (
-                            <motion.div
-                              key={entry.id}
-                              className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.3 }}
-                            >
-                              <div>
-                                <div className="font-medium text-gray-900 dark:text-white">{entry.reason}</div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {new Date(entry.date).toLocaleDateString()}
+                      <TabsContent value="income" className="space-y-6">
+                        <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
+                          <CardHeader>
+                            <CardTitle className="text-gray-900 dark:text-white">Add Income</CardTitle>
+                            <CardDescription className="text-gray-600 dark:text-gray-300">Record new income from clients or other sources</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
+                              <CardContent className="p-4">
+                                <div className="flex gap-4">
+                                  <div className="flex-1">
+                                    <Label htmlFor="incomeSource" className="text-gray-700 dark:text-gray-300">Source</Label>
+                                    <div className="relative">
+                                      <Input
+                                        id="incomeSource"
+                                        placeholder="Client name or income source"
+                                        value={incomeSource}
+                                        onChange={(e) => {
+                                          setIncomeSource(e.target.value)
+                                          setShowSuggestions(true)
+                                        }}
+                                        onFocus={() => setShowSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                                        autoComplete="off"
+                                        className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                                      />
+                                      {showSuggestions && clientSuggestions.length > 0 && (
+                                        <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-auto">
+                                          {clientSuggestions.map((client) => (
+                                            <div
+                                              key={client.clientId}
+                                              className="px-3 py-2 cursor-pointer hover:bg-gray-100 text-gray-900 suggestion-item"
+                                              onMouseDown={() => {
+                                                setIncomeSource(client.name)
+                                                setShowSuggestions(false)
+                                              }}
+                                            >
+                                              <span className="font-medium text-gray-900">{client.name}</span>
+                                              <span className="ml-2 text-xs text-gray-500">{client.company}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <Label htmlFor="incomeAmount" className="text-gray-700 dark:text-gray-300">Amount</Label>
+                                    <Input
+                                      id="incomeAmount"
+                                      type="number"
+                                      placeholder="Enter amount"
+                                      value={incomeAmount}
+                                      onChange={(e) => setIncomeAmount(e.target.value)}
+                                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                                    />
+                                  </div>
+                                  <div className="flex items-end">
+                                    <Button onClick={addIncome} className="gradient-bg text-white">
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Add Income
+                                    </Button>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="text-lg font-semibold text-red-600 dark:text-red-400">
-                                -${entry.amount.toLocaleString()}
-                              </div>
-                            </motion.div>
-                          ))}
-                        {spendingEntries.length === 0 && (
-                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">No spending entries yet</div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                              </CardContent>
+                            </Card>
 
-                {/* Enhanced Data Visualization Tab */}
-                <TabsContent value="enhanced" className="space-y-6">
-                  {/* Interactive Chart with Real-time Updates */}
-                  <Suspense fallback={
-                    <MagazineCard
-                      title="Loading Chart"
-                      description="Preparing interactive visualization..."
-                      icon={BarChart3}
-                      value="..."
-                    />
-                  }>
-                    <LazyInteractiveChart
-                      data={chartData}
-                      title="Interactive Financial Overview"
-                      description="Click on data points for detailed drill-down analysis"
-                      type="line"
-                      height={400}
-                      enableRealTime={true}
-                      onDrillDown={(data: any) => {
-                        console.log('Drill-down data:', data)
-                        // Handle drill-down logic here
-                      }}
-                      onExport={() => {
-                        // Handle export logic here
-                        console.log('Exporting chart data...')
-                      }}
-                    />
-                  </Suspense>
+                            <div className="space-y-2">
+                              <h3 className="font-medium text-gray-900 dark:text-white">Recent Income Entries</h3>
+                              {incomeEntries
+                                .slice(-5)
+                                .reverse()
+                                .map((entry) => (
+                                  <motion.div
+                                    key={entry.id}
+                                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                  >
+                                    <div>
+                                      <div className="font-medium text-gray-900 dark:text-white">{entry.source}</div>
+                                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {new Date(entry.date).toLocaleDateString()}
+                                      </div>
+                                    </div>
+                                    <div className="text-lg font-semibold text-green-600 dark:text-green-400">
+                                      +${entry.amount.toLocaleString()}
+                                    </div>
+                                  </motion.div>
+                                ))}
+                              {incomeEntries.length === 0 && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">No income entries yet</div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
 
-                  {/* Real-time Status Indicator */}
-                  {/* Comparative Analysis */}
-                  <Suspense fallback={
-                    <MagazineCard
-                      title="Loading Analysis"
-                      description="Preparing comparative analysis..."
-                      icon={BarChart3}
-                      value="..."
-                    />
-                  }>
-                    <LazyComparativeAnalysis
-                      data={comparativeData}
-                      title="Year-over-Year & Competitor Analysis"
-                      description="Compare your performance against previous years and industry competitors"
-                      metrics={{
-                        currentYear: "2024",
-                        previousYear: "2023",
-                        competitors: ["TechCorp", "DataSys"],
-                        industry: "Industry Average"
-                      }}
-                    />
-                  </Suspense>
+                      <TabsContent value="spending" className="space-y-6">
+                        <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
+                          <CardHeader>
+                            <CardTitle className="text-gray-900 dark:text-white">Add Spending</CardTitle>
+                            <CardDescription className="text-gray-600 dark:text-gray-300">Record business expenses and spending</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
+                              <CardContent className="p-4">
+                                <div className="flex gap-4">
+                                  <div className="flex-1">
+                                    <Label htmlFor="spendingReason" className="text-gray-700 dark:text-gray-300">Reason</Label>
+                                    <Input
+                                      id="spendingReason"
+                                      placeholder="Reason for spending"
+                                      value={spendingReason}
+                                      onChange={(e) => setSpendingReason(e.target.value)}
+                                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                                    />
+                                  </div>
+                                  <div className="flex-1">
+                                    <Label htmlFor="spendingAmount" className="text-gray-700 dark:text-gray-300">Amount</Label>
+                                    <Input
+                                      id="spendingAmount"
+                                      type="number"
+                                      placeholder="Enter amount"
+                                      value={spendingAmount}
+                                      onChange={(e) => setSpendingAmount(e.target.value)}
+                                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                                    />
+                                  </div>
+                                  <div className="flex items-end">
+                                    <Button onClick={addSpending} className="gradient-bg text-white">
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Add Spending
+                                    </Button>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
 
-                  {/* Custom Dashboard Builder */}
-                  <Suspense fallback={
-                    <MagazineCard
-                      title="Loading Builder"
-                      description="Preparing dashboard builder..."
-                      icon={Settings}
-                      value="..."
-                    />
-                  }>
-                    <LazyCustomDashboardBuilder
-                      initialWidgets={[
-                        {
-                          id: 'widget-1',
-                          type: 'chart',
-                          title: 'Revenue Chart',
-                          position: { x: 0, y: 0, w: 6, h: 4 },
-                          config: { chartType: 'line', enableRealTime: true },
-                          data: chartData
-                        },
-                        {
-                          id: 'widget-2',
-                          type: 'metric',
-                          title: 'Total Revenue',
-                          position: { x: 6, y: 0, w: 3, h: 2 },
-                          config: { value: totalIncome.toLocaleString(), change: '+12%' }
-                        }
-                      ]}
-                      onSave={(widgets: any) => {
-                        console.log('Dashboard saved:', widgets)
-                        // Handle dashboard save logic here
-                      }}
-                      availableData={chartData}
-                    />
-                  </Suspense>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </motion.div>
-        </motion.div>
-        )}
-      </div>
-    </DashboardLayout>
+                            <div className="space-y-2">
+                              <h3 className="font-medium text-gray-900 dark:text-white">Recent Spending Entries</h3>
+                              {spendingEntries
+                                .slice(-5)
+                                .reverse()
+                                .map((entry) => (
+                                  <motion.div
+                                    key={entry.id}
+                                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                  >
+                                    <div>
+                                      <div className="font-medium text-gray-900 dark:text-white">{entry.reason}</div>
+                                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {new Date(entry.date).toLocaleDateString()}
+                                      </div>
+                                    </div>
+                                    <div className="text-lg font-semibold text-red-600 dark:text-red-400">
+                                      -${entry.amount.toLocaleString()}
+                                    </div>
+                                  </motion.div>
+                                ))}
+                              {spendingEntries.length === 0 && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">No spending entries yet</div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+                      {/* Enhanced Data Visualization Tab */}
+                      <TabsContent value="enhanced" className="space-y-6">
+                        {/* Interactive Chart with Real-time Updates */}
+                        <InteractiveChart
+                          data={chartData}
+                          title="Interactive Financial Overview"
+                          description="Click on data points for detailed drill-down analysis"
+                          type="line"
+                          height={400}
+                          enableRealTime={true}
+                          onDrillDown={(data: any) => {
+                            console.log('Drill-down data:', data)
+                            // Handle drill-down logic here
+                          }}
+                          onExport={() => {
+                            // Handle export logic here
+                            console.log('Exporting chart data...')
+                          }}
+                        />
+
+                        {/* Real-time Status Indicator */}
+                        {/* Comparative Analysis */}
+                        <ComparativeAnalysis
+                          data={comparativeData}
+                          title="Year-over-Year & Competitor Analysis"
+                          description="Compare your performance against previous years and industry competitors"
+                          metrics={{
+                            currentYear: "2024",
+                            previousYear: "2023",
+                            competitors: ["TechCorp", "DataSys"],
+                            industry: "Industry Average"
+                          }}
+                        />
+
+                        {/* Custom Dashboard Builder */}
+                        <CustomDashboardBuilder
+                          initialWidgets={[
+                            {
+                              id: 'widget-1',
+                              type: 'chart',
+                              title: 'Revenue Chart',
+                              position: { x: 0, y: 0, w: 6, h: 4 },
+                              config: { chartType: 'line', enableRealTime: true },
+                              data: chartData
+                            },
+                            {
+                              id: 'widget-2',
+                              type: 'metric',
+                              title: 'Total Revenue',
+                              position: { x: 6, y: 0, w: 3, h: 2 },
+                              config: { value: totalIncome.toLocaleString(), change: '+12%' }
+                            }
+                          ]}
+                          onSave={(widgets: any) => {
+                            console.log('Dashboard saved:', widgets)
+                            // Handle dashboard save logic here
+                          }}
+                          availableData={chartData}
+                        />
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </motion.div>
+          )}
+        </div>
+      </DashboardLayout>
     </RealTimeDataProvider>
   )
 }
