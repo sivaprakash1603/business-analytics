@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [loginSuccess, setLoginSuccess] = useState(false)
-  const loginTypeRef = useRef<"email"|"google"|null>(null)
+  const loginTypeRef = useRef<"email" | "google" | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -304,29 +304,233 @@ export default function LoginPage() {
               className="w-full h-full "
             >
               <CardContent className="space-y-6 p-8 h-full flex flex-col ">
-            {!showReset ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="space-y-4"
-              >
-                <form onSubmit={handleSubmit} className="space-y-4">
+                {!showReset ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="space-y-4"
+                  >
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                      <motion.div
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="space-y-2"
+                      >
+                        <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                          className="transition-all duration-300 focus:ring-2 focus:ring-blue-500"
+                        />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: 0.4 }}
+                        className="space-y-2"
+                      >
+                        <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Enter your password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            className="transition-all duration-300 focus:ring-2 focus:ring-blue-500 pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <Button
+                          type="submit"
+                          className="w-full gradient-bg text-white hover:opacity-90 transition-all duration-300 transform hover:scale-105"
+                          disabled={loading}
+                        >
+                          {loading ? (
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                              className="flex items-center gap-2"
+                            >
+                              <Zap className="h-4 w-4" />
+                              Signing in...
+                            </motion.div>
+                          ) : (
+                            "Sign In"
+                          )}
+                        </Button>
+                      </motion.div>
+                    </form>
+
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                      className="text-center"
+                    >
+                      <Button
+                        variant="link"
+                        onClick={() => setShowReset(true)}
+                        className="text-sm text-blue-600 hover:underline transition-colors duration-300"
+                      >
+                        Forgot your password?
+                      </Button>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: 1 }}
+                      transition={{ delay: 0.7 }}
+                      className="relative"
+                    >
+                      <Separator />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="bg-background px-2 text-xs text-muted-foreground">or</span>
+                      </div>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.8 }}
+                    >
+                      <Button
+                        onClick={handleGoogleSignIn}
+                        variant="outline"
+                        className="w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300 transform hover:scale-105 border-2"
+                        disabled={loading}
+                      >
+                        <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
+                          <path
+                            fill="currentColor"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                          />
+                          <path
+                            fill="currentColor"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="currentColor"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                          />
+                          <path
+                            fill="currentColor"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                          />
+                        </svg>
+                        Continue with Google
+                      </Button>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.9 }}
+                      className="text-center text-sm"
+                    >
+                      {"Don't have an account? "}
+                      <button
+                        onClick={() => setIsFlipped(true)}
+                        className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors duration-300 font-medium cursor-pointer"
+                      >
+                        Sign up
+                      </button>
+                    </motion.div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="space-y-4"
+                  >
+                    <form onSubmit={handleResetPassword} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="resetEmail" className="text-sm font-medium">Email</Label>
+                        <Input
+                          id="resetEmail"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          required
+                          className="transition-all duration-300 focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        className="w-full gradient-bg text-white hover:opacity-90 transition-all duration-300 transform hover:scale-105"
+                        disabled={loading}
+                      >
+                        {loading ? "Sending..." : "Send Reset Email"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300"
+                        onClick={() => setShowReset(false)}
+                      >
+                        Back to Login
+                      </Button>
+                    </form>
+                  </motion.div>
+                )}
+              </CardContent>
+            </MagazineCard>
+          </motion.div>
+
+          {/* Signup Side */}
+          <motion.div
+            className="absolute inset-0 backface-hidden"
+            style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+          >
+            <MagazineCard
+              title="Create Account"
+              description="Start your business analytics journey"
+              icon={Building2}
+              gradient="from-purple-500 to-pink-600"
+              className="w-full h-full"
+            >
+              <CardContent className="space-y-6 p-8 h-full flex flex-col">
+                <form onSubmit={handleSignUp} className="space-y-4 flex-1">
                   <motion.div
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: 0.3 }}
                     className="space-y-2"
                   >
-                    <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                    <Label htmlFor="signupCompany" className="text-sm font-medium">Company Name</Label>
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      id="signupCompany"
+                      type="text"
+                      placeholder="Enter your company name"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
                       required
-                      className="transition-all duration-300 focus:ring-2 focus:ring-blue-500"
+                      className="transition-all duration-300 focus:ring-2 focus:ring-purple-500"
                     />
                   </motion.div>
 
@@ -336,25 +540,63 @@ export default function LoginPage() {
                     transition={{ delay: 0.4 }}
                     className="space-y-2"
                   >
-                    <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                    <Label htmlFor="signupEmail" className="text-sm font-medium">Email</Label>
+                    <Input
+                      id="signupEmail"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="transition-all duration-300 focus:ring-2 focus:ring-purple-500"
+                    />
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="space-y-2"
+                  >
+                    <Label htmlFor="signupPassword" className="text-sm font-medium">Password</Label>
                     <div className="relative">
                       <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
+                        id="signupPassword"
+                        type="password"
                         placeholder="Enter your password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        className="transition-all duration-300 focus:ring-2 focus:ring-blue-500 pr-10"
+                        className="transition-all duration-300 focus:ring-2 focus:ring-purple-500 pr-10"
+                      />
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.55 }}
+                    className="space-y-2"
+                  >
+                    <Label htmlFor="signupConfirmPassword" className="text-sm font-medium">Confirm Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="signupConfirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm your password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        className="transition-all duration-300 focus:ring-2 focus:ring-purple-500 pr-10"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </motion.div>
@@ -362,43 +604,17 @@ export default function LoginPage() {
                   <motion.div
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.5 }}
+                    transition={{ delay: 0.6 }}
+                    className="mt-auto"
                   >
                     <Button
                       type="submit"
                       className="w-full gradient-bg text-white hover:opacity-90 transition-all duration-300 transform hover:scale-105"
-                      disabled={loading}
                     >
-                      {loading ? (
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="flex items-center gap-2"
-                        >
-                          <Zap className="h-4 w-4" />
-                          Signing in...
-                        </motion.div>
-                      ) : (
-                        "Sign In"
-                      )}
+                      Create Account
                     </Button>
                   </motion.div>
                 </form>
-
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="text-center"
-                >
-                  <Button
-                    variant="link"
-                    onClick={() => setShowReset(true)}
-                    className="text-sm text-blue-600 hover:underline transition-colors duration-300"
-                  >
-                    Forgot your password?
-                  </Button>
-                </motion.div>
 
                 <motion.div
                   initial={{ scaleX: 0 }}
@@ -418,7 +634,7 @@ export default function LoginPage() {
                   transition={{ delay: 0.8 }}
                 >
                   <Button
-                    onClick={handleGoogleSignIn}
+                    onClick={handleGoogleSignUp}
                     variant="outline"
                     className="w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300 transform hover:scale-105 border-2"
                     disabled={loading}
@@ -441,7 +657,7 @@ export default function LoginPage() {
                         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                       />
                     </svg>
-                    Continue with Google
+                    Sign up with Google
                   </Button>
                 </motion.div>
 
@@ -451,233 +667,17 @@ export default function LoginPage() {
                   transition={{ delay: 0.9 }}
                   className="text-center text-sm"
                 >
-                  {"Don't have an account? "}
+                  {"Already have an account? "}
                   <button
-                    onClick={() => setIsFlipped(true)}
-                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors duration-300 font-medium cursor-pointer"
+                    onClick={() => setIsFlipped(false)}
+                    className="text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors duration-300 font-medium cursor-pointer"
                   >
-                    Sign up
+                    Sign in
                   </button>
                 </motion.div>
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5 }}
-                className="space-y-4"
-              >
-                <form onSubmit={handleResetPassword} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="resetEmail" className="text-sm font-medium">Email</Label>
-                    <Input
-                      id="resetEmail"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      required
-                      className="transition-all duration-300 focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full gradient-bg text-white hover:opacity-90 transition-all duration-300 transform hover:scale-105"
-                    disabled={loading}
-                  >
-                    {loading ? "Sending..." : "Send Reset Email"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300"
-                    onClick={() => setShowReset(false)}
-                  >
-                    Back to Login
-                  </Button>
-                </form>
-              </motion.div>
-            )}
-          </CardContent>
-        </MagazineCard>
-        </motion.div>
-
-        {/* Signup Side */}
-        <motion.div
-          className="absolute inset-0 backface-hidden"
-          style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
-        >
-          <MagazineCard
-            title="Create Account"
-            description="Start your business analytics journey"
-            icon={Building2}
-            gradient="from-purple-500 to-pink-600"
-            className="w-full h-full"
-          >
-            <CardContent className="space-y-6 p-8 h-full flex flex-col">
-              <form onSubmit={handleSignUp} className="space-y-4 flex-1">
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-2"
-                >
-                  <Label htmlFor="signupCompany" className="text-sm font-medium">Company Name</Label>
-                  <Input
-                    id="signupCompany"
-                    type="text"
-                    placeholder="Enter your company name"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    required
-                    className="transition-all duration-300 focus:ring-2 focus:ring-purple-500"
-                  />
-                </motion.div>
-
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="space-y-2"
-                >
-                  <Label htmlFor="signupEmail" className="text-sm font-medium">Email</Label>
-                  <Input
-                    id="signupEmail"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="transition-all duration-300 focus:ring-2 focus:ring-purple-500"
-                  />
-                </motion.div>
-
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="space-y-2"
-                >
-                  <Label htmlFor="signupPassword" className="text-sm font-medium">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="signupPassword"
-                      type="password"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="transition-all duration-300 focus:ring-2 focus:ring-purple-500 pr-10"
-                    />
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.55 }}
-                  className="space-y-2"
-                >
-                  <Label htmlFor="signupConfirmPassword" className="text-sm font-medium">Confirm Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="signupConfirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm your password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                      className="transition-all duration-300 focus:ring-2 focus:ring-purple-500 pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="mt-auto"
-                >
-                  <Button
-                    type="submit"
-                    className="w-full gradient-bg text-white hover:opacity-90 transition-all duration-300 transform hover:scale-105"
-                  >
-                    Create Account
-                  </Button>
-                </motion.div>
-              </form>
-
-              <motion.div
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ delay: 0.7 }}
-                className="relative"
-              >
-                <Separator />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="bg-background px-2 text-xs text-muted-foreground">or</span>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.8 }}
-              >
-                <Button
-                  onClick={handleGoogleSignUp}
-                  variant="outline"
-                  className="w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300 transform hover:scale-105 border-2"
-                  disabled={loading}
-                >
-                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                    <path
-                      fill="currentColor"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  Sign up with Google
-                </Button>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.9 }}
-                className="text-center text-sm"
-              >
-                {"Already have an account? "}
-                <button
-                  onClick={() => setIsFlipped(false)}
-                  className="text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors duration-300 font-medium cursor-pointer"
-                >
-                  Sign in
-                </button>
-              </motion.div>
-            </CardContent>
-          </MagazineCard>
-        </motion.div>
+              </CardContent>
+            </MagazineCard>
+          </motion.div>
         </motion.div>
       </motion.div>
 

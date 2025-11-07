@@ -156,7 +156,7 @@ export default function DashboardPage() {
     if (!user?.uid) return
 
     setIsPageLoading(true)
-    
+
 
     try {
       // Step 1: Fetch company name (10%)
@@ -236,7 +236,7 @@ export default function DashboardPage() {
         })
 
       // Step 5: Fetch clients for suggestions (85%)
-      const clientsPromise = fetchClientsFromDB(user.uid).then(() => {})
+      const clientsPromise = fetchClientsFromDB(user.uid).then(() => { })
 
       // Wait for all data to load
       await Promise.all([companyPromise, incomePromise, spendingPromise, loansPromise, clientsPromise])
@@ -639,7 +639,7 @@ export default function DashboardPage() {
   const getChartData = () => {
     const { filteredIncome, filteredSpending } = getFilteredData()
 
-  // Debug logs removed for performance
+    // Debug logs removed for performance
 
     if (timeUnit === "day") {
       // Group by day
