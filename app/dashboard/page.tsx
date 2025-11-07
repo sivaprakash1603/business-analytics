@@ -1071,7 +1071,7 @@ export default function DashboardPage() {
                                     />
                                   </div>
                                   <div className="flex items-end">
-                                    <Button onClick={addLoan} className="gradient-bg text-white">
+                                    <Button onClick={addLoan} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg">
                                       <Plus className="h-4 w-4 mr-2" />
                                       Add Loan
                                     </Button>
@@ -1179,7 +1179,7 @@ export default function DashboardPage() {
                                     />
                                   </div>
                                   <div className="flex items-end">
-                                    <Button onClick={addIncome} className="gradient-bg text-white">
+                                    <Button onClick={addIncome} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg">
                                       <Plus className="h-4 w-4 mr-2" />
                                       Add Income
                                     </Button>
@@ -1249,7 +1249,7 @@ export default function DashboardPage() {
                                     />
                                   </div>
                                   <div className="flex items-end">
-                                    <Button onClick={addSpending} className="gradient-bg text-white">
+                                    <Button onClick={addSpending} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg">
                                       <Plus className="h-4 w-4 mr-2" />
                                       Add Spending
                                     </Button>

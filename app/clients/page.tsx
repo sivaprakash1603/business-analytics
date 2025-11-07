@@ -85,7 +85,8 @@ function ClientsPage() {
             .reduce((sum: number, entry: any) => sum + entry.amount, 0)
           return { ...client, totalIncome: clientIncome }
         })
-        setClients(clientsWithIncome)
+        // Ensure each client has a stable id for React key & deletion: prefer Mongo _id, fallback to clientId
+        setClients(clientsWithIncome.map((c: any) => ({ ...c, id: c._id?.toString() || c.clientId })))
         setIncomeEntries(incomeList)
       } catch {
         setClients([])
@@ -140,7 +141,7 @@ function ClientsPage() {
           .reduce((sum: number, entry: any) => sum + entry.amount, 0)
         return { ...client, totalIncome: clientIncome }
       })
-      setClients(clientsWithIncome)
+      setClients(clientsWithIncome.map((c: any) => ({ ...c, id: c._id?.toString() || c.clientId })))
       setIncomeEntries(incomeList)
     } catch {
       setClients([])
@@ -257,50 +258,53 @@ function ClientsPage() {
           <div className="flex items-center gap-3">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gradient-bg text-white">
+                <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Client
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-lg bg-white dark:bg-transparent backdrop-blur shadow-2xl">
                 <DialogHeader>
-                  <DialogTitle>Add New Client</DialogTitle>
-                  <DialogDescription>Enter the client information to add them to your database.</DialogDescription>
+                  <DialogTitle className="bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">Add New Client</DialogTitle>
+                  <DialogDescription className="text-muted-foreground">Enter the client information to add them to your database.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="clientName">Client Name *</Label>
+                    <Label htmlFor="clientName" className="text-foreground/90">Client Name *</Label>
                     <Input
                       id="clientName"
                       placeholder="Enter client name"
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
+                      className="bg-white/60 dark:bg-gray-800/50 border-white/40 dark:border-white/10 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-cyan-500/40 focus-visible:border-cyan-500/60"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="clientCompany">Company Name *</Label>
+                    <Label htmlFor="clientCompany" className="text-foreground/90">Company Name *</Label>
                     <Input
                       id="clientCompany"
                       placeholder="Enter company name"
                       value={clientCompany}
                       onChange={(e) => setClientCompany(e.target.value)}
+                      className="bg-white/60 dark:bg-gray-800/50 border-white/40 dark:border-white/10 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-cyan-500/40 focus-visible:border-cyan-500/60"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="clientDescription">Description</Label>
+                    <Label htmlFor="clientDescription" className="text-foreground/90">Description</Label>
                     <Textarea
                       id="clientDescription"
                       placeholder="Enter client description (optional)"
                       value={clientDescription}
                       onChange={(e) => setClientDescription(e.target.value)}
                       rows={3}
+                      className="bg-white/60 dark:bg-gray-800/50 border-white/40 dark:border-white/10 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-cyan-500/40 focus-visible:border-cyan-500/60"
                     />
                   </div>
-                  <div className="flex space-x-2">
-                    <Button onClick={addClient} className="flex-1 gradient-bg text-white">
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={addClient} className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white shadow-md shadow-cyan-500/20">
                       Add Client
                     </Button>
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1 border-white/30 bg-white/30 dark:bg-gray-900/20 backdrop-blur hover:bg-white/40">
                       Cancel
                     </Button>
                   </div>

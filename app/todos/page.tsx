@@ -293,7 +293,7 @@ export default function TodosPage() {
                 >
                   <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 px-6 py-3 text-lg shadow-lg">
+                      <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg">
                         <Plus className="h-5 w-5 mr-2" />
                         Create Task
                       </Button>
@@ -518,11 +518,11 @@ export default function TodosPage() {
 
         {/* Add Todo Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-w-lg bg-white dark:bg-transparent backdrop-blur shadow-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-xl">
                 <Plus className="h-5 w-5" />
-                Create New Task
+                <span className="bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">Create New Task</span>
               </DialogTitle>
               <DialogDescription className="text-base">
                 Add a new task with specific deadlines and details to stay organized.
@@ -536,7 +536,7 @@ export default function TodosPage() {
                   placeholder="Enter a clear, actionable task title"
                   value={todoTitle}
                   onChange={(e) => setTodoTitle(e.target.value)}
-                  className="text-base"
+                  className="text-base bg-white/60 dark:bg-gray-800/50 border-white/40 dark:border-white/10 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-cyan-500/40 focus-visible:border-cyan-500/60"
                 />
               </div>
               <div className="space-y-3">
@@ -547,7 +547,7 @@ export default function TodosPage() {
                   value={todoDescription}
                   onChange={(e) => setTodoDescription(e.target.value)}
                   rows={4}
-                  className="text-base resize-none"
+                  className="text-base resize-none bg-white/60 dark:bg-gray-800/50 border-white/40 dark:border-white/10 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-cyan-500/40 focus-visible:border-cyan-500/60"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -558,7 +558,7 @@ export default function TodosPage() {
                     type="date"
                     value={todoDueDate}
                     onChange={(e) => setTodoDueDate(e.target.value)}
-                    className="text-base"
+                    className="text-base bg-white/60 dark:bg-gray-800/50 border-white/40 dark:border-white/10 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-cyan-500/40 focus-visible:border-cyan-500/60"
                   />
                 </div>
                 <div className="space-y-3">
@@ -568,14 +568,14 @@ export default function TodosPage() {
                     type="time"
                     value={todoDueTime}
                     onChange={(e) => setTodoDueTime(e.target.value)}
-                    className="text-base"
+                    className="text-base bg-white/60 dark:bg-gray-800/50 border-white/40 dark:border-white/10 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-cyan-500/40 focus-visible:border-cyan-500/60"
                   />
                 </div>
               </div>
               <div className="flex gap-3 pt-4">
                 <Button
                   onClick={addTodo}
-                  className="flex-1 gradient-bg text-white py-3 text-base font-medium"
+                  className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white py-3 text-base font-medium shadow-md shadow-cyan-500/20"
                   disabled={!todoTitle || !todoDueDate || !todoDueTime}
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -584,7 +584,7 @@ export default function TodosPage() {
                 <Button
                   variant="outline"
                   onClick={() => setIsDialogOpen(false)}
-                  className="flex-1 py-3 text-base"
+                  className="flex-1 py-3 text-base border-white/30 bg-white/30 dark:bg-gray-900/20 backdrop-blur hover:bg-white/40"
                 >
                   Cancel
                 </Button>

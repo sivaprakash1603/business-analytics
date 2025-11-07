@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth-provider"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -14,7 +14,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { FloatingElements } from "@/components/floating-elements"
+// FloatingElements and heavy background animations removed for performance on dashboard
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: BarChart3, color: "text-blue-500" },
@@ -68,48 +68,9 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-      {/* Background (lighter, like landing page): gradient + floating elements */}
+    <div className="relative min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-x-hidden">
+      {/* Static gradient background only (no animated particles/shapes) */}
       <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" />
-
-      {/* FloatingElements for background animation */}
-      <FloatingElements />
-
-      {/* Animated geometric shapes like landing page */}
-      <motion.div
-        className="fixed top-20 left-20 w-32 h-32 border-2 border-white/20 rounded-full -z-10"
-        animate={{
-          rotate: 360,
-          scale: [1, 1.1, 1],
-        }}
-        transition={{
-          rotate: { duration: 20, repeat: Infinity, ease: "linear" },
-          scale: { duration: 4, repeat: Infinity, ease: "easeInOut" }
-        }}
-      />
-      <motion.div
-        className="fixed bottom-32 right-32 w-24 h-24 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg rotate-45 -z-10"
-        animate={{
-          rotate: [45, 135, 45],
-          y: [0, -20, 0],
-        }}
-        transition={{
-          rotate: { duration: 8, repeat: Infinity, ease: "easeInOut" },
-          y: { duration: 3, repeat: Infinity, ease: "easeInOut" }
-        }}
-      />
-      <motion.div
-        className="fixed top-1/2 left-1/4 w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full -z-10"
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.3, 0.7, 0.3],
-        }}
-        transition={{
-          duration: 6,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
 
       {/* Mobile sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
