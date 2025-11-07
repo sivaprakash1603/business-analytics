@@ -13,7 +13,6 @@ import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle } from "lucide-react"
 import { RealTimeDataProvider } from "@/components/realtime-data-provider"
-import { motion } from "framer-motion"
 import { MagazineCard } from "@/components/magazine-card"
 import { DownloadReportDialog } from "@/components/download-report-dialog"
 import { InteractiveChart } from "@/components/interactive-chart"
@@ -40,7 +39,7 @@ async function fetchClientsFromDB(userId: string) {
     return []
   }
 }
-import { FloatingElements } from "@/components/floating-elements"
+// FloatingElements removed on dashboard for performance
 import { usePassphrase } from "@/components/passphrase-context"
 
 interface IncomeEntry {
@@ -73,12 +72,10 @@ export default function DashboardPage() {
 
   // Main loading state for entire page
   const [isPageLoading, setIsPageLoading] = useState(true)
-  const [loadingProgress, setLoadingProgress] = useState(0)
 
   // Add the news state and loading state at the top with other state declarations
   const [newsArticles, setNewsArticles] = useState<any[]>([])
   const [newsLoading, setNewsLoading] = useState(false)
-  const [chartLoading, setChartLoading] = useState(true)
 
   // State for income
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([])
@@ -159,7 +156,7 @@ export default function DashboardPage() {
     if (!user?.uid) return
 
     setIsPageLoading(true)
-    setLoadingProgress(0)
+    
 
     try {
       // Step 1: Fetch company name (10%)
@@ -167,7 +164,6 @@ export default function DashboardPage() {
         .then(res => res.json())
         .then(data => {
           if (data.companyName) setCompanyName(data.companyName)
-          setLoadingProgress(10)
         })
 
       // Step 2: Fetch income entries (30%)
@@ -191,7 +187,6 @@ export default function DashboardPage() {
             entries = entries.map((e: any) => e.__encrypted ? { ...e, source: "Encrypted", amount: 0 } : e)
           }
           setIncomeEntries(entries)
-          setLoadingProgress(30)
         })
 
       // Step 3: Fetch spending entries (50%)
@@ -215,7 +210,6 @@ export default function DashboardPage() {
             entries = entries.map((e: any) => e.__encrypted ? { ...e, reason: "Encrypted", amount: 0 } : e)
           }
           setSpendingEntries(entries)
-          setLoadingProgress(50)
         })
 
       // Step 4: Fetch loan entries (70%)
@@ -239,40 +233,21 @@ export default function DashboardPage() {
             entries = entries.map((e: any) => e.__encrypted ? { ...e, description: "Encrypted", amount: 0 } : e)
           }
           setLoanEntries(entries)
-          setLoadingProgress(70)
         })
 
       // Step 5: Fetch clients for suggestions (85%)
-      const clientsPromise = fetchClientsFromDB(user.uid)
-        .then(clients => {
-          // This will be used for client suggestions
-          setLoadingProgress(85)
-        })
+      const clientsPromise = fetchClientsFromDB(user.uid).then(() => {})
 
       // Wait for all data to load
       await Promise.all([companyPromise, incomePromise, spendingPromise, loansPromise, clientsPromise])
 
-      // Step 6: Simulate chart preparation (95%)
-      setTimeout(() => {
-        setLoadingProgress(95)
-
-        // Step 7: Final chart loading (100%)
-        setTimeout(() => {
-          setChartLoading(false)
-          setLoadingProgress(100)
-
-          // Complete loading after a brief delay
-          setTimeout(() => {
-            setIsPageLoading(false)
-          }, 500)
-        }, 1000)
-      }, 500)
+      // All data loaded
+      setIsPageLoading(false)
 
     } catch (error) {
       console.error("Error loading dashboard data:", error)
       // Even if there's an error, show the page with empty data
       setIsPageLoading(false)
-      setChartLoading(false)
     }
   }
 
@@ -664,9 +639,7 @@ export default function DashboardPage() {
   const getChartData = () => {
     const { filteredIncome, filteredSpending } = getFilteredData()
 
-    console.log(`Grouping data by: ${timeUnit}`)
-    console.log("Filtered income entries:", filteredIncome.length)
-    console.log("Filtered spending entries:", filteredSpending.length)
+  // Debug logs removed for performance
 
     if (timeUnit === "day") {
       // Group by day
@@ -808,150 +781,36 @@ export default function DashboardPage() {
 
   const chartData = getChartData()
 
-  // Debug logging for chart data
-  console.log(`Chart data for ${timeUnit} view:`, chartData)
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  }
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        duration: 0.5,
-      },
-    },
-  }
-
   return (
     <RealTimeDataProvider options={{ enabled: true, interval: 120000, showNotifications: true }}>
       <DashboardLayout>
         <div className="relative min-h-screen">
-          <FloatingElements />
-
-          {/* Loading Screen */}
+          {/* Loading Screen (simplified) */}
           {isPageLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-cyan-900"
-            >
-              <div className="text-center space-y-8">
-                {/* Animated Logo/Icon */}
-                <motion.div
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ duration: 0.8, ease: "easeOut" }}
-                  className="relative"
-                >
-                  <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-2xl">
-                    <TrendingUp className="h-12 w-12 text-white" />
-                  </div>
-                  {/* Pulsing rings */}
-                  <motion.div
-                    animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0, 0.3] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="absolute inset-0 rounded-full border-2 border-cyan-400/30"
-                  />
-                  <motion.div
-                    animate={{ scale: [1, 2, 1], opacity: [0.2, 0, 0.2] }}
-                    transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
-                    className="absolute inset-0 rounded-full border border-blue-400/20"
-                  />
-                </motion.div>
-
-                {/* Loading Text */}
-                <motion.div
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.3 }}
-                  className="space-y-4"
-                >
-                  <h2 className="text-2xl font-bold text-white">Loading Your Dashboard</h2>
-                  <p className="text-cyan-200">Preparing your business analytics...</p>
-                </motion.div>
-
-                {/* Progress Bar */}
-                <motion.div
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.5 }}
-                  className="w-80 max-w-md mx-auto"
-                >
-                  <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${loadingProgress}%` }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                    />
-                  </div>
-                  <div className="text-center mt-3">
-                    <span className="text-sm text-cyan-200">{loadingProgress}% Complete</span>
-                  </div>
-                </motion.div>
-
-                {/* Loading Steps */}
-                <motion.div
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.7 }}
-                  className="text-center space-y-2"
-                >
-                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 10 ? 'text-cyan-300' : 'text-white/50'
-                    }`}>
-                    {loadingProgress >= 10 ? '✓' : '○'} Loading company data
-                  </div>
-                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 30 ? 'text-cyan-300' : 'text-white/50'
-                    }`}>
-                    {loadingProgress >= 30 ? '✓' : '○'} Fetching income records
-                  </div>
-                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 50 ? 'text-cyan-300' : 'text-white/50'
-                    }`}>
-                    {loadingProgress >= 50 ? '✓' : '○'} Processing expenses
-                  </div>
-                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 70 ? 'text-cyan-300' : 'text-white/50'
-                    }`}>
-                    {loadingProgress >= 70 ? '✓' : '○'} Analyzing loans
-                  </div>
-                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 85 ? 'text-cyan-300' : 'text-white/50'
-                    }`}>
-                    {loadingProgress >= 85 ? '✓' : '○'} Preparing client data
-                  </div>
-                  <div className={`text-sm transition-colors duration-300 ${loadingProgress >= 95 ? 'text-cyan-300' : 'text-white/50'
-                    }`}>
-                    {loadingProgress >= 95 ? '✓' : '○'} Generating charts
-                  </div>
-                </motion.div>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-cyan-900">
+              <div className="text-center space-y-4">
+                <div className="w-12 h-12 mx-auto rounded-full border-4 border-white/30 border-t-white animate-spin" />
+                <h2 className="text-2xl font-bold text-white">Loading Your Dashboard</h2>
+                <p className="text-cyan-200">Preparing your business analytics...</p>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Main Content */}
           {!isPageLoading && (
-            <motion.div className="space-y-6" variants={containerVariants} initial="hidden" animate="visible">
+            <div className="space-y-6">
               {/* Welcome Section */}
-              <motion.div variants={itemVariants}>
+              <div>
                 <MagazineCard
                   title={`Welcome back, ${companyName}!`}
                   description="Here's an overview of your business analytics dashboard."
                   icon={TrendingUp}
                   gradient="from-blue-600 to-purple-600"
                 />
-              </motion.div>
+              </div>
 
               {/* Download Report Section */}
-              <motion.div variants={itemVariants}>
+              <div>
                 <Card className="glow-card backdrop-blur-sm shadow-2xl p-10 rounded-lg">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
@@ -972,11 +831,11 @@ export default function DashboardPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
+              </div>
 
               {/* Stats Cards */}
-              <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" variants={containerVariants}>
-                <motion.div variants={itemVariants}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div>
                   <MagazineCard
                     title="Total Income"
                     value={`$${totalIncome.toLocaleString()}`}
@@ -985,9 +844,9 @@ export default function DashboardPage() {
                     gradient="from-green-500 to-emerald-500"
                     className="hover:scale-105 transition-all duration-300 group shadow-xl"
                   />
-                </motion.div>
+                </div>
 
-                <motion.div variants={itemVariants}>
+                <div>
                   <MagazineCard
                     title="Total Spending"
                     value={`$${totalSpending.toLocaleString()}`}
@@ -996,9 +855,9 @@ export default function DashboardPage() {
                     gradient="from-red-500 to-pink-500"
                     className="hover:scale-105 transition-all duration-300 group shadow-xl"
                   />
-                </motion.div>
+                </div>
 
-                <motion.div variants={itemVariants}>
+                <div>
                   <MagazineCard
                     title="Net Profit"
                     value={`$${totalProfit.toLocaleString()}`}
@@ -1007,9 +866,9 @@ export default function DashboardPage() {
                     gradient="from-blue-500 to-cyan-500"
                     className="hover:scale-105 transition-all duration-300 group shadow-xl"
                   />
-                </motion.div>
+                </div>
 
-                <motion.div variants={itemVariants}>
+                <div>
                   <MagazineCard
                     title="Outstanding Loans"
                     value={`$${totalLoans.toLocaleString()}`}
@@ -1018,11 +877,11 @@ export default function DashboardPage() {
                     gradient="from-orange-500 to-red-500"
                     className="hover:scale-105 transition-all duration-300 group shadow-xl"
                   />
-                </motion.div>
-              </motion.div>
+                </div>
+              </div>
 
               {/* Main Content Tabs */}
-              <motion.div variants={itemVariants}>
+              <div>
                 <Card className="glow-card backdrop-blur-sm shadow-2xl p-10 rounded-lg">
                   <CardContent className="p-6">
                     <Tabs defaultValue="analytics" className="space-y-6">
@@ -1120,15 +979,7 @@ export default function DashboardPage() {
                           </CardHeader>
                           <CardContent>
                             <div id="financial-overview-chart" className="h-80 relative">
-                              {chartLoading ? (
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <div className="loading-dots">
-                                    <div className="dot"></div>
-                                    <div className="dot"></div>
-                                    <div className="dot"></div>
-                                  </div>
-                                </div>
-                              ) : chartData.length > 0 ? (
+                              {chartData.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                   <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
@@ -1231,12 +1082,9 @@ export default function DashboardPage() {
 
                             <div className="space-y-2">
                               {loanEntries.map((loan) => (
-                                <motion.div
+                                <div
                                   key={loan.id}
                                   className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                  initial={{ opacity: 0, x: -20 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ duration: 0.3 }}
                                 >
                                   <div className="flex-1">
                                     <div className="font-medium text-gray-900 dark:text-white">{loan.description}</div>
@@ -1264,7 +1112,7 @@ export default function DashboardPage() {
                                       </>
                                     )}
                                   </div>
-                                </motion.div>
+                                </div>
                               ))}
                               {loanEntries.length === 0 && (
                                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">No loans added yet</div>
@@ -1346,12 +1194,9 @@ export default function DashboardPage() {
                                 .slice(-5)
                                 .reverse()
                                 .map((entry) => (
-                                  <motion.div
+                                  <div
                                     key={entry.id}
                                     className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ duration: 0.3 }}
                                   >
                                     <div>
                                       <div className="font-medium text-gray-900 dark:text-white">{entry.source}</div>
@@ -1362,7 +1207,7 @@ export default function DashboardPage() {
                                     <div className="text-lg font-semibold text-green-600 dark:text-green-400">
                                       +${entry.amount.toLocaleString()}
                                     </div>
-                                  </motion.div>
+                                  </div>
                                 ))}
                               {incomeEntries.length === 0 && (
                                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">No income entries yet</div>
@@ -1419,12 +1264,9 @@ export default function DashboardPage() {
                                 .slice(-5)
                                 .reverse()
                                 .map((entry) => (
-                                  <motion.div
+                                  <div
                                     key={entry.id}
                                     className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ duration: 0.3 }}
                                   >
                                     <div>
                                       <div className="font-medium text-gray-900 dark:text-white">{entry.reason}</div>
@@ -1435,7 +1277,7 @@ export default function DashboardPage() {
                                     <div className="text-lg font-semibold text-red-600 dark:text-red-400">
                                       -${entry.amount.toLocaleString()}
                                     </div>
-                                  </motion.div>
+                                  </div>
                                 ))}
                               {spendingEntries.length === 0 && (
                                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">No spending entries yet</div>
@@ -1454,7 +1296,7 @@ export default function DashboardPage() {
                           description="Click on data points for detailed drill-down analysis"
                           type="line"
                           height={400}
-                          enableRealTime={true}
+                          enableRealTime={false}
                           onDrillDown={(data: any) => {
                             console.log('Drill-down data:', data)
                             // Handle drill-down logic here
@@ -1508,8 +1350,8 @@ export default function DashboardPage() {
                     </Tabs>
                   </CardContent>
                 </Card>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
         </div>
       </DashboardLayout>

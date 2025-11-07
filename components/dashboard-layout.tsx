@@ -2,7 +2,6 @@
 
 import React from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { UnicornScene } from 'unicornstudio-react'
 import { useAuth } from "@/components/auth-provider"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -70,13 +69,8 @@ export default function DashboardLayout({
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-      {/* Animated Background */}
-      <div className="fixed inset-0 z-0 opacity-100">
-        <UnicornScene projectId="tJ8pevguoGk5VRJcAqw9" />
-      </div>
-
-      {/* Overlay for better content readability */}
-      <div className="fixed inset-0 z-0 bg-gradient-to-br from-black/20 via-transparent to-black/20" />
+      {/* Background (lighter, like landing page): gradient + floating elements */}
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900" />
 
       {/* FloatingElements for background animation */}
       <FloatingElements />

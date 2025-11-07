@@ -13,7 +13,6 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
 import { Eye, EyeOff, Sparkles, Shield, Zap, Building2 } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { UnicornScene } from 'unicornstudio-react'
 import { motion } from "framer-motion"
 import { MagazineCard } from "@/components/magazine-card"
 import { FloatingElements } from "@/components/floating-elements"
@@ -199,14 +198,7 @@ export default function LoginPage() {
   if (authLoading) {
     return (
       <div className="relative min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-        {/* Animated Background */}
-        <div className="fixed inset-0 z-0 opacity-100">
-          <UnicornScene projectId="tJ8pevguoGk5VRJcAqw9"/>
-        </div>
-
-        {/* Overlay for better content readability */}
-        <div className="fixed inset-0 z-0 bg-gradient-to-br from-black/20 via-transparent to-black/20" />
-
+        {/* Background similar to landing: gradient + floating elements (no heavy video) */}
         <FloatingElements />
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
@@ -248,15 +240,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
-      {/* Animated Background */}
-      <div className="fixed inset-0 z-0 opacity-100">
-        <UnicornScene projectId="tJ8pevguoGk5VRJcAqw9"/>
-      </div>
-
-      {/* Overlay for better content readability */}
-      <div className="fixed inset-0 z-0 bg-gradient-to-br from-black/20 via-transparent to-black/20" />
-
-      {/* FloatingElements for background animation */}
+      {/* Background similar to landing: gradient + floating elements (no heavy video) */}
       <FloatingElements />
 
       {/* Animated geometric shapes like landing page */}
