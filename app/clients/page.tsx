@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useState, useEffect } from "react"
+import clientCrypto from "@/lib/client-crypto"
+import { usePassphrase } from "@/components/passphrase-context"
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/hooks/use-toast"
 import { MagazineCard } from "@/components/magazine-card"
@@ -46,6 +48,7 @@ function ClientsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
   const { user } = useAuth()
+  const { passphrase, encryptPayload, decryptPayload, clearPassphrase } = usePassphrase()
 
   // Fetch clients from MongoDB on mount and after add/remove
   useEffect(() => {
@@ -59,8 +62,24 @@ function ClientsPage() {
         const incomeData = await incomeRes.json()
         const clientsList = clientsRes.ok && clientsData.clients ? clientsData.clients : []
         const incomeList = incomeRes.ok && incomeData.entries ? incomeData.entries : []
+        // Decrypt client data if encrypted and passphrase is available
+        const clientsDecrypted = await Promise.all(clientsList.map(async (client: any) => {
+          if (client.__encrypted && client.encrypted) {
+            if (passphrase) {
+              try {
+                const dec = await decryptPayload(client.encrypted)
+                return { ...client, ...dec }
+              } catch {
+                return { ...client, name: 'Encrypted', company: 'Encrypted', description: 'Encrypted' }
+              }
+            }
+            return { ...client, name: 'Encrypted', company: 'Encrypted', description: 'Encrypted' }
+          }
+          return client
+        }))
+
         // Calculate totalIncome for each client
-        const clientsWithIncome = clientsList.map((client: any) => {
+        const clientsWithIncome = clientsDecrypted.map((client: any) => {
           const clientIncome = incomeList
             .filter((entry: any) => entry.clientId && client.clientId && entry.clientId === client.clientId)
             .reduce((sum: number, entry: any) => sum + entry.amount, 0)
@@ -76,18 +95,46 @@ function ClientsPage() {
     fetchClientsAndIncome()
   }, [])
 
+  // Re-decrypt when passphrase changes
+  useEffect(() => {
+    refreshClients()
+  }, [passphrase])
+
+  // Clear passphrase on page unload to ensure it's only in-memory for the session
+  useEffect(() => {
+    const clear = () => clearPassphrase()
+    window.addEventListener('beforeunload', clear)
+    return () => window.removeEventListener('beforeunload', clear)
+  }, [clearPassphrase])
+
   // Helper to refresh clients and income from DB
   const refreshClients = async () => {
     try {
       const [clientsRes, incomeRes] = await Promise.all([
-        fetch("/api/clients?userId="+user?.uid),
+        fetch("/api/clients?userId=" + user?.uid),
         fetch("/api/income?userId=" + user?.uid)
       ])
       const clientsData = await clientsRes.json()
       const incomeData = await incomeRes.json()
       const clientsList = clientsRes.ok && clientsData.clients ? clientsData.clients : []
       const incomeList = incomeRes.ok && incomeData.entries ? incomeData.entries : []
-      const clientsWithIncome = clientsList.map((client: any) => {
+      // Decrypt if needed using current passphrase
+      const clientsDecrypted = await Promise.all(clientsList.map(async (client: any) => {
+        if (client.__encrypted && client.encrypted) {
+          if (passphrase) {
+            try {
+              const dec = await decryptPayload(client.encrypted)
+              return { ...client, ...dec }
+            } catch {
+              return { ...client, name: 'Encrypted', company: 'Encrypted', description: 'Encrypted' }
+            }
+          }
+          return { ...client, name: 'Encrypted', company: 'Encrypted', description: 'Encrypted' }
+        }
+        return client
+      }))
+
+      const clientsWithIncome = clientsDecrypted.map((client: any) => {
         const clientIncome = incomeList
           .filter((entry: any) => entry.clientId && client.clientId && entry.clientId === client.clientId)
           .reduce((sum: number, entry: any) => sum + entry.amount, 0)
@@ -119,16 +166,18 @@ function ClientsPage() {
       return
     }
     try {
+      let bodyPayload: any
+      if (passphrase) {
+        const encrypted = await encryptPayload({ name: clientName, company: clientCompany, description: clientDescription })
+        bodyPayload = { __encrypted: true, encrypted, createdAt: new Date().toISOString(), userId: user.uid }
+      } else {
+        bodyPayload = { name: clientName, company: clientCompany, description: clientDescription, createdAt: new Date().toISOString(), userId: user.uid }
+      }
+
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: clientName,
-          company: clientCompany,
-          description: clientDescription,
-          createdAt: new Date().toISOString(),
-          userId: user.uid,
-        }),
+        body: JSON.stringify(bodyPayload),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -205,58 +254,60 @@ function ClientsPage() {
             <h1 className="text-2xl font-bold">Client Management</h1>
             <p className="text-muted-foreground">Manage your clients and track revenue from each source</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-bg text-white">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Client
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Client</DialogTitle>
-                <DialogDescription>Enter the client information to add them to your database.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="clientName">Client Name *</Label>
-                  <Input
-                    id="clientName"
-                    placeholder="Enter client name"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                  />
+          <div className="flex items-center gap-3">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gradient-bg text-white">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Client
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Client</DialogTitle>
+                  <DialogDescription>Enter the client information to add them to your database.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="clientName">Client Name *</Label>
+                    <Input
+                      id="clientName"
+                      placeholder="Enter client name"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="clientCompany">Company Name *</Label>
+                    <Input
+                      id="clientCompany"
+                      placeholder="Enter company name"
+                      value={clientCompany}
+                      onChange={(e) => setClientCompany(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="clientDescription">Description</Label>
+                    <Textarea
+                      id="clientDescription"
+                      placeholder="Enter client description (optional)"
+                      value={clientDescription}
+                      onChange={(e) => setClientDescription(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button onClick={addClient} className="flex-1 gradient-bg text-white">
+                      Add Client
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="clientCompany">Company Name *</Label>
-                  <Input
-                    id="clientCompany"
-                    placeholder="Enter company name"
-                    value={clientCompany}
-                    onChange={(e) => setClientCompany(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="clientDescription">Description</Label>
-                  <Textarea
-                    id="clientDescription"
-                    placeholder="Enter client description (optional)"
-                    value={clientDescription}
-                    onChange={(e) => setClientDescription(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-                <div className="flex space-x-2">
-                  <Button onClick={addClient} className="flex-1 gradient-bg text-white">
-                    Add Client
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Stats Cards */}

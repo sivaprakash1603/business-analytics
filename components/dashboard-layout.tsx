@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { PassphraseControl } from "@/components/passphrase-control"
 import { BarChart3, Users, CheckSquare, Brain, LogOut, Menu, Newspaper, Sparkles, TrendingUp, Target } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -155,7 +156,7 @@ export default function DashboardLayout({
                       onClick={() => setSidebarOpen(false)}
                       className={cn(
                         "group flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden bg-transparent",
-                        isActive ? "text-transparent bg-clip-text bg-gradient-to-r "+item.color : "text-muted-foreground hover:text-foreground"
+                        isActive ? "text-transparent bg-clip-text bg-gradient-to-r " + item.color : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       {/* Only the icon, no background box */}
@@ -168,7 +169,7 @@ export default function DashboardLayout({
                         <motion.div
                           className={cn(
                             "w-full h-0.5 rounded-full mt-1",
-                            "bg-gradient-to-r "+item.color
+                            "bg-gradient-to-r " + item.color
                           )}
                           layoutId="activeIndicator"
                         />
@@ -283,7 +284,7 @@ export default function DashboardLayout({
                       <motion.div
                         className={cn(
                           "w-full h-0.5 rounded-full mt-1",
-                          "bg-gradient-to-r "+item.color
+                          "bg-gradient-to-r " + item.color
                         )}
                         layoutId="activeIndicatorDesktop"
                       />
@@ -366,6 +367,13 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center space-x-4">
+              <motion.div
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="hidden md:block"
+              >
+                <PassphraseControl />
+              </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}

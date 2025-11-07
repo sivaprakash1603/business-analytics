@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
+import { usePassphrase } from "@/components/passphrase-context"
 import { Brain, Send, TrendingUp, AlertTriangle, Lightbulb, BarChart3, Users, Target, Shield, Sparkles, Zap, MessageSquare } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -45,6 +46,7 @@ interface BusinessData {
 
 export default function AIInsightsPage() {
   const { user } = useAuth()
+  const { passphrase, decryptPayload } = usePassphrase()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -92,10 +94,34 @@ export default function AIInsightsPage() {
           clientsRes.json()
         ])
 
-        const incomeEntries = incomeData.entries || []
-        const spendingEntries = spendingData.entries || []
-        const loanEntries = loansData.entries || []
-        const clients = clientsData.clients || []
+        let incomeEntries = incomeData.entries || []
+        let spendingEntries = spendingData.entries || []
+        let loanEntries = loansData.entries || []
+        let clients = clientsData.clients || []
+
+        // Decrypt encrypted payloads if passphrase is available; otherwise mask descriptive fields
+        async function decryptList(list: any[], fieldFallbacks: Record<string, any>) {
+          if (!list || list.length === 0) return list
+          if (!passphrase) {
+            return list.map(e => e.__encrypted ? { ...e, ...fieldFallbacks } : e)
+          }
+          return Promise.all(list.map(async (e) => {
+            if (e.__encrypted && e.encrypted) {
+              try {
+                const dec = await decryptPayload(e.encrypted)
+                return { ...e, ...dec }
+              } catch {
+                return { ...e, ...fieldFallbacks }
+              }
+            }
+            return e
+          }))
+        }
+
+        incomeEntries = await decryptList(incomeEntries, { source: 'Encrypted', amount: 0 })
+        spendingEntries = await decryptList(spendingEntries, { reason: 'Encrypted', amount: 0 })
+        loanEntries = await decryptList(loanEntries, { description: 'Encrypted', amount: 0 })
+        clients = await decryptList(clients, { name: 'Encrypted', company: 'Encrypted', description: 'Encrypted' })
 
         console.log('Fetched data:', {
           incomeEntries: incomeEntries.length,
@@ -214,7 +240,7 @@ I can help you with financial analysis, growth strategies, cost optimization, an
     }
 
     fetchBusinessData()
-  }, [user, toast])
+  }, [user, toast, passphrase])
 
   // Save messages to localStorage
   useEffect(() => {
@@ -352,12 +378,12 @@ No clients are showing signs of churn risk. Your client relationships appear str
       const profitMargin =
         businessData.totalIncome > 0 ? (businessData.totalProfit / businessData.totalIncome) * 100 : 0
       return `Your current profit margin is ${profitMargin.toFixed(1)}%. ${profitMargin > 20
-          ? "Excellent! You have a healthy profit margin."
-          : profitMargin > 10
-            ? "Good profit margin, but there's room for improvement."
-            : profitMargin > 0
-              ? "Your profit margin is low. Consider reducing expenses or increasing revenue."
-              : "You're operating at a loss. Immediate action needed to reduce costs or increase income."
+        ? "Excellent! You have a healthy profit margin."
+        : profitMargin > 10
+          ? "Good profit margin, but there's room for improvement."
+          : profitMargin > 0
+            ? "Your profit margin is low. Consider reducing expenses or increasing revenue."
+            : "You're operating at a loss. Immediate action needed to reduce costs or increase income."
         }
 
 Suggestions:
@@ -525,7 +551,7 @@ Ask me anything about your business - I have access to advanced analytics includ
     setIsLoading(true)
 
     try {
-      // Call the AI chat API with advanced analytics data
+      // Build enhanced business data
       const enhancedBusinessData = {
         ...businessData,
         clientAnalysis: clientAnalysis,
@@ -534,15 +560,22 @@ Ask me anything about your business - I have access to advanced analytics includ
         atRiskClientsCount: clientAnalysis.filter(c => c.isAtRisk).length,
         topClientRevenue: clientAnalysis[0]?.totalRevenue || 0,
         topClientName: clientAnalysis[0]?.name || 'N/A'
-      };
+      }
+
+      // Pseudonymize client and company names before sending to AI
+      const { sanitizedMessage, sanitizedContext, sanitizedData, tokenToName } = sanitizeForAI(
+        currentInput,
+        messages.slice(-6),
+        enhancedBusinessData
+      )
 
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: currentInput,
-          businessData: enhancedBusinessData,
-          context: messages.slice(-6) // Last 6 messages for context
+          message: sanitizedMessage,
+          businessData: sanitizedData,
+          context: sanitizedContext
         })
       })
 
@@ -552,10 +585,13 @@ Ask me anything about your business - I have access to advanced analytics includ
         throw new Error(data.error || 'Failed to get AI response')
       }
 
+      // De-tokenize AI response back to real names on the client
+      const detokenized = detokenizeResponse(String(data.response || ''), tokenToName)
+
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: "ai",
-        content: data.response,
+        content: detokenized,
         timestamp: new Date().toISOString(),
       }
 
@@ -927,10 +963,10 @@ Ask me anything about your business - I have access to advanced analytics includ
                     <div key={index} className="flex items-start gap-3 p-4 border rounded-lg">
                       <Icon
                         className={`h-5 w-5 mt-0.5 ${insight.type === "warning"
-                            ? "text-red-500"
-                            : insight.type === "positive"
-                              ? "text-green-500"
-                              : "text-blue-500"
+                          ? "text-red-500"
+                          : insight.type === "positive"
+                            ? "text-green-500"
+                            : "text-blue-500"
                           }`}
                       />
                       <div className="flex-1">
@@ -1022,4 +1058,123 @@ Ask me anything about your business - I have access to advanced analytics includ
       </div>
     </DashboardLayout>
   )
+}
+
+// --- Privacy helpers: client-side pseudonymization for AI ---
+function sanitizeForAI(
+  message: string,
+  context: ChatMessage[],
+  data: any
+) {
+  const clients: Array<{ clientId?: string; name?: string; company?: string }> = data?.clients || []
+
+  // Build token maps
+  const nameToToken = new Map<string, string>()
+  const companyToToken = new Map<string, string>()
+  const tokenToName = new Map<string, string>()
+
+  // Assign deterministic tokens based on stable order (by totalRevenue desc then name)
+  const byRevenue = (data?.clientAnalysis || [])
+    .slice()
+    .sort((a: any, b: any) => (b.totalRevenue || 0) - (a.totalRevenue || 0))
+
+  const orderedClients = byRevenue.length
+    ? byRevenue.map((a: any) => ({ name: a.name, company: a.company, clientId: a.clientId }))
+    : clients
+
+  orderedClients.forEach((c: any, idx: number) => {
+    const name = (c?.name || '').trim()
+    const company = (c?.company || '').trim()
+    const nameToken = `client${idx + 1}`
+    const companyToken = `company${idx + 1}`
+    if (name && !nameToToken.has(name)) {
+      nameToToken.set(name, nameToken)
+      tokenToName.set(nameToken, name)
+    }
+    if (company && !companyToToken.has(company)) {
+      companyToToken.set(company, companyToken)
+      // Also map company tokens back so we can reinsert company names in AI responses
+      tokenToName.set(companyToken, company)
+    }
+  })
+
+  // Helper to replace occurrences with word boundaries (case-insensitive)
+  const replaceAll = (text: string) => {
+    let out = text
+    // Replace names first (longest first to avoid partial overlaps)
+    const names = Array.from(nameToToken.keys()).sort((a, b) => b.length - a.length)
+    names.forEach((name) => {
+      if (!name) return
+      const token = nameToToken.get(name)!
+      const pattern = new RegExp(`\\b${escapeRegex(name)}\\b`, 'gi')
+      out = out.replace(pattern, token)
+    })
+    // Replace companies
+    const companies = Array.from(companyToToken.keys()).sort((a, b) => b.length - a.length)
+    companies.forEach((comp) => {
+      if (!comp) return
+      const token = companyToToken.get(comp)!
+      const pattern = new RegExp(`\\b${escapeRegex(comp)}\\b`, 'gi')
+      out = out.replace(pattern, token)
+    })
+    return out
+  }
+
+  // Sanitize message and recent context
+  const sanitizedMessage = replaceAll(message)
+  const sanitizedContext = (context || []).map((m) => ({ ...m, content: replaceAll(m.content) }))
+
+  // Sanitize data copy (avoid mutating original)
+  const deepClone = (obj: any) => JSON.parse(JSON.stringify(obj))
+  const sanitizedData = deepClone(data || {})
+
+  // Replace in clients
+  if (Array.isArray(sanitizedData.clients)) {
+    sanitizedData.clients = sanitizedData.clients.map((c: any) => ({
+      ...c,
+      name: c?.name ? (nameToToken.get(c.name) || c.name) : c?.name,
+      company: c?.company ? (companyToToken.get(c.company) || c.company) : c?.company,
+    }))
+  }
+  // Replace in clientAnalysis
+  if (Array.isArray(sanitizedData.clientAnalysis)) {
+    sanitizedData.clientAnalysis = sanitizedData.clientAnalysis.map((c: any) => ({
+      ...c,
+      name: c?.name ? (nameToToken.get(c.name) || c.name) : c?.name,
+      company: c?.company ? (companyToToken.get(c.company) || c.company) : c?.company,
+    }))
+  }
+  // Replace topClientName
+  if (sanitizedData.topClientName) {
+    const n = sanitizedData.topClientName
+    sanitizedData.topClientName = nameToToken.get(n) || n
+  }
+  // Replace incomeEntries.source when it equals a client name
+  if (Array.isArray(sanitizedData.incomeEntries)) {
+    sanitizedData.incomeEntries = sanitizedData.incomeEntries.map((e: any) => {
+      const src = e?.source
+      if (typeof src === 'string' && nameToToken.has(src)) {
+        return { ...e, source: nameToToken.get(src) }
+      }
+      return e
+    })
+  }
+
+  return { sanitizedMessage, sanitizedContext, sanitizedData, tokenToName }
+}
+
+function detokenizeResponse(text: string, tokenToName: Map<string, string>) {
+  let out = text
+  // Replace longer tokens first
+  const tokens = Array.from(tokenToName.keys()).sort((a, b) => b.length - a.length)
+  tokens.forEach((tok) => {
+    const real = tokenToName.get(tok)!
+    const pattern = new RegExp(`\\b${escapeRegex(tok)}\\b`, 'g')
+    out = out.replace(pattern, real)
+  })
+  return out
+}
+
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
 }

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
+import { usePassphrase } from "@/components/passphrase-context"
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, Calendar, Clock, CheckCircle, Trash2, AlertCircle, CheckSquare, Target, TrendingUp } from "lucide-react"
@@ -45,6 +46,7 @@ export default function TodosPage() {
 
 
   const { user } = useAuth()
+  const { passphrase, encryptPayload, decryptPayload } = usePassphrase()
 
   // Fetch todos from DB
   async function fetchTodosFromDB() {
@@ -53,7 +55,23 @@ export default function TodosPage() {
       const res = await fetch("/api/todos?userId=" + user.uid)
       const data = await res.json()
       if (res.ok && data.entries) {
-        setTodos(data.entries.map((todo: any) => ({ ...todo, id: todo._id })))
+        let list = data.entries.map((todo: any) => ({ ...todo, id: todo._id }))
+        if (passphrase) {
+          list = await Promise.all(list.map(async (t: any) => {
+            if (t.__encrypted && t.encrypted) {
+              try {
+                const dec = await decryptPayload(t.encrypted)
+                return { ...t, ...dec }
+              } catch {
+                return { ...t, title: 'Encrypted', description: t.description ? 'Encrypted' : '' }
+              }
+            }
+            return t
+          }))
+        } else {
+          list = list.map((t: any) => t.__encrypted ? { ...t, title: 'Encrypted', description: t.description ? 'Encrypted' : '' } : t)
+        }
+        setTodos(list)
       } else setTodos([])
     } catch {
       setTodos([])
@@ -63,6 +81,11 @@ export default function TodosPage() {
   useEffect(() => {
     if (user?.uid) fetchTodosFromDB()
   }, [user?.uid])
+
+  // Re-decrypt when passphrase changes
+  useEffect(() => {
+    if (user?.uid) fetchTodosFromDB()
+  }, [passphrase])
 
   const addTodo = async () => {
     if (!todoTitle || !todoDueDate || !todoDueTime) {
@@ -82,10 +105,20 @@ export default function TodosPage() {
       return
     }
     try {
-      const res = await fetch("/api/todos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      let body: any
+      if (passphrase) {
+        const encrypted = await encryptPayload({ title: todoTitle, description: todoDescription })
+        body = {
+          __encrypted: true,
+          encrypted,
+          dueDate: todoDueDate,
+          dueTime: todoDueTime,
+          completed: false,
+          createdAt: new Date().toISOString(),
+          userId: user.uid,
+        }
+      } else {
+        body = {
           title: todoTitle,
           description: todoDescription,
           dueDate: todoDueDate,
@@ -93,7 +126,12 @@ export default function TodosPage() {
           completed: false,
           createdAt: new Date().toISOString(),
           userId: user.uid,
-        }),
+        }
+      }
+      const res = await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -347,139 +385,136 @@ export default function TodosPage() {
           transition={{ duration: 0.6 }}
           viewport={{ once: true }}
         >
-            <Card className="glow-card backdrop-blur-sm border-0 shadow-2xl">
-              <CardHeader className="pb-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-2xl font-bold flex items-center gap-3">
-                      <Target className="h-6 w-6 text-blue-600" />
-                      Your Tasks
-                    </CardTitle>
-                    <CardDescription className="text-lg">
-                      Manage and track all your business tasks and deadlines
-                    </CardDescription>
-                  </div>
-                  <Badge variant="secondary" className="px-4 py-2 text-sm">
-                    {todos.length} Total Tasks
-                  </Badge>
+          <Card className="glow-card backdrop-blur-sm border-0 shadow-2xl">
+            <CardHeader className="pb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-2xl font-bold flex items-center gap-3">
+                    <Target className="h-6 w-6 text-blue-600" />
+                    Your Tasks
+                  </CardTitle>
+                  <CardDescription className="text-lg">
+                    Manage and track all your business tasks and deadlines
+                  </CardDescription>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {todos.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5 }}
-                    className="text-center py-16"
-                  >
-                    <CheckCircle className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
-                    <h3 className="text-2xl font-semibold mb-3">No tasks yet</h3>
-                    <p className="text-muted-foreground text-lg mb-6 max-w-md mx-auto">
-                      Start building your productivity by creating your first task.
-                      Stay organized and achieve your business goals efficiently.
-                    </p>
-                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button className="gradient-bg text-white px-8 py-3 text-lg">
-                          <Plus className="h-5 w-5 mr-2" />
-                          Create Your First Task
-                        </Button>
-                      </DialogTrigger>
-                    </Dialog>
-                  </motion.div>
-                ) : (
-                  <div className="space-y-4">
-                    {sortedTodos.map((todo, index) => (
-                      <motion.div
-                        key={todo.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.05 }}
-                        className={`group relative overflow-hidden p-6 border rounded-xl transition-all duration-300 ${
-                          todo.completed
-                            ? "bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800"
-                            : "bg-gradient-to-r from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 hover:shadow-lg border-gray-200 dark:border-gray-700"
+                <Badge variant="secondary" className="px-4 py-2 text-sm">
+                  {todos.length} Total Tasks
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {todos.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5 }}
+                  className="text-center py-16"
+                >
+                  <CheckCircle className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
+                  <h3 className="text-2xl font-semibold mb-3">No tasks yet</h3>
+                  <p className="text-muted-foreground text-lg mb-6 max-w-md mx-auto">
+                    Start building your productivity by creating your first task.
+                    Stay organized and achieve your business goals efficiently.
+                  </p>
+                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="gradient-bg text-white px-8 py-3 text-lg">
+                        <Plus className="h-5 w-5 mr-2" />
+                        Create Your First Task
+                      </Button>
+                    </DialogTrigger>
+                  </Dialog>
+                </motion.div>
+              ) : (
+                <div className="space-y-4">
+                  {sortedTodos.map((todo, index) => (
+                    <motion.div
+                      key={todo.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      className={`group relative overflow-hidden p-6 border rounded-xl transition-all duration-300 ${todo.completed
+                          ? "bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800"
+                          : "bg-gradient-to-r from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 hover:shadow-lg border-gray-200 dark:border-gray-700"
                         }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <Checkbox
-                            checked={todo.completed}
-                            onCheckedChange={() => toggleTodo(todo.id)}
-                            className="mt-1 h-5 w-5"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className={`text-lg font-semibold transition-colors ${
-                                todo.completed
-                                  ? "line-through text-muted-foreground"
-                                  : "group-hover:text-blue-600"
+                    >
+                      <div className="flex items-start gap-4">
+                        <Checkbox
+                          checked={todo.completed}
+                          onCheckedChange={() => toggleTodo(todo.id)}
+                          className="mt-1 h-5 w-5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className={`text-lg font-semibold transition-colors ${todo.completed
+                                ? "line-through text-muted-foreground"
+                                : "group-hover:text-blue-600"
                               }`}>
-                                {todo.title}
-                              </h3>
-                              {!todo.completed && isOverdue(todo.dueDate, todo.dueTime) && (
-                                <Badge variant="destructive" className="animate-pulse">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Overdue
-                                </Badge>
-                              )}
-                              {!todo.completed && isDueToday(todo.dueDate) && !isOverdue(todo.dueDate, todo.dueTime) && (
-                                <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                                  <Clock className="h-3 w-3 mr-1" />
-                                  Due Today
-                                </Badge>
-                              )}
-                              {todo.completed && (
-                                <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Completed
-                                </Badge>
-                              )}
-                            </div>
-                            {todo.description && (
-                              <p className={`text-sm mb-4 leading-relaxed ${
-                                todo.completed ? "text-muted-foreground" : "text-muted-foreground"
-                              }`}>
-                                {todo.description}
-                              </p>
+                              {todo.title}
+                            </h3>
+                            {!todo.completed && isOverdue(todo.dueDate, todo.dueTime) && (
+                              <Badge variant="destructive" className="animate-pulse">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Overdue
+                              </Badge>
                             )}
-                            <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4" />
-                                <span className="font-medium">
-                                  {new Date(todo.dueDate).toLocaleDateString('en-US', {
-                                    weekday: 'short',
-                                    month: 'short',
-                                    day: 'numeric'
-                                  })}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4" />
-                                <span className="font-medium">
-                                  {new Date(`2000-01-01T${todo.dueTime}`).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                              </div>
+                            {!todo.completed && isDueToday(todo.dueDate) && !isOverdue(todo.dueDate, todo.dueTime) && (
+                              <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Due Today
+                              </Badge>
+                            )}
+                            {todo.completed && (
+                              <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Completed
+                              </Badge>
+                            )}
+                          </div>
+                          {todo.description && (
+                            <p className={`text-sm mb-4 leading-relaxed ${todo.completed ? "text-muted-foreground" : "text-muted-foreground"
+                              }`}>
+                              {todo.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4" />
+                              <span className="font-medium">
+                                {new Date(todo.dueDate).toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4" />
+                              <span className="font-medium">
+                                {new Date(`2000-01-01T${todo.dueTime}`).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteTodo(todo.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteTodo(todo.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Add Todo Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

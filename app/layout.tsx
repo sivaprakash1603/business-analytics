@@ -6,13 +6,14 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/components/auth-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { ScrollProgress, PageTransition } from "@/components/magazine-components"
+import { PassphraseProvider } from "@/components/passphrase-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Business Analytics Dashboard",
   description: "AI-powered business analytics platform",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -25,11 +26,13 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange={false}>
           <AuthProvider>
-            <ScrollProgress />
-            <PageTransition>
-              {children}
-            </PageTransition>
-            <Toaster />
+            <PassphraseProvider>
+              <ScrollProgress />
+              <PageTransition>
+                {children}
+              </PageTransition>
+              <Toaster />
+            </PassphraseProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
