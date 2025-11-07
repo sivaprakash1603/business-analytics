@@ -434,8 +434,8 @@ export default function TodosPage() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
                       className={`group relative overflow-hidden p-6 border rounded-xl transition-all duration-300 ${todo.completed
-                          ? "bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800"
-                          : "bg-gradient-to-r from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 hover:shadow-lg border-gray-200 dark:border-gray-700"
+                        ? "bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800"
+                        : "bg-gradient-to-r from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 hover:shadow-lg border-gray-200 dark:border-gray-700"
                         }`}
                     >
                       <div className="flex items-start gap-4">
@@ -447,8 +447,8 @@ export default function TodosPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-2">
                             <h3 className={`text-lg font-semibold transition-colors ${todo.completed
-                                ? "line-through text-muted-foreground"
-                                : "group-hover:text-blue-600"
+                              ? "line-through text-muted-foreground"
+                              : "group-hover:text-blue-600"
                               }`}>
                               {todo.title}
                             </h3>
