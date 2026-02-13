@@ -26,9 +26,14 @@ A comprehensive business analytics and financial management platform built with 
 
 ## 📚 Documentation
 
-- **[Feature Enhancement Roadmap](./docs/FEATURE_ENHANCEMENTS.md)** - Comprehensive list of potential features to add
-- **[Advanced Analytics Guide](./docs/ADVANCED_ANALYTICS.md)** - How to use advanced analytics features
+### Planning & Features
+- **[Feature Discovery Summary](./docs/FEATURE_DISCOVERY_SUMMARY.md)** - Executive summary of feature analysis
+- **[Feature Enhancement Roadmap](./docs/FEATURE_ENHANCEMENTS.md)** - Comprehensive list of 48+ potential features
+- **[Implementation Guide](./docs/IMPLEMENTATION_GUIDE.md)** - Detailed build instructions for top features
+
+### Setup & Usage
 - **[Gemini AI Setup](./docs/GEMINI_SETUP.md)** - Configure AI integration
+- **[Advanced Analytics Guide](./docs/ADVANCED_ANALYTICS.md)** - How to use advanced analytics features
 
 ## 🛠️ Setup
 
