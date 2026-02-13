@@ -46,7 +46,7 @@ async function generateGeminiResponse(message: string, businessData: any, contex
       }));
 
     const chat = ai.chats.create({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.5-flash",
       history: [
         {
           role: "model",

@@ -8,8 +8,10 @@ import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { usePassphrase } from "@/components/passphrase-context"
-import { Brain, Send, TrendingUp, AlertTriangle, Lightbulb, BarChart3, Users, Target, Shield, Sparkles, Zap, MessageSquare } from "lucide-react"
+import { Brain, Send, TrendingUp, AlertTriangle, Lightbulb, BarChart3, Users, Target, Shield, Sparkles, Zap, MessageSquare, Search, Activity, TrendingDown, ArrowUpRight, ArrowDownRight, DollarSign } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   analyzeClients,
   calculateBusinessTrends,
@@ -19,9 +21,14 @@ import {
   type BusinessTrends,
   type RiskAnalysis
 } from "@/lib/advanced-analytics"
-import { motion } from "framer-motion"
+import { runFullAnomalyDetection, type AnomalyAlert } from "@/lib/anomaly-detection"
+import { generateExpenseSuggestions, analyzeSpendingCategories, type ExpenseSuggestion, type CategoryBreakdown } from "@/lib/expense-suggestions"
+import { parseNaturalLanguageQuery, executeLocalQuery, formatNLQueryResponse, processClientInactivityQuery, type NLQueryResult } from "@/lib/natural-language-query"
+import { generateRevenueForecast, type RevenueForecast } from "@/lib/predictive-revenue"
+import { motion, AnimatePresence } from "framer-motion"
 import { MagazineCard } from "@/components/magazine-card"
 import { FloatingElements } from "@/components/floating-elements"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts"
 
 interface ChatMessage {
   id: string
@@ -41,6 +48,7 @@ interface BusinessData {
   expenseRatio: number
   incomeEntries: any[]
   spendingEntries: any[]
+  loanEntries: any[]
   clients: any[]
 }
 
@@ -55,6 +63,14 @@ export default function AIInsightsPage() {
   const [clientAnalysis, setClientAnalysis] = useState<ClientAnalysis[]>([])
   const [businessTrends, setBusinessTrends] = useState<BusinessTrends | null>(null)
   const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysis | null>(null)
+  const [anomalyAlerts, setAnomalyAlerts] = useState<AnomalyAlert[]>([])
+  const [expenseSuggestions, setExpenseSuggestions] = useState<ExpenseSuggestion[]>([])
+  const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryBreakdown[]>([])
+  const [revenueForecast, setRevenueForecast] = useState<RevenueForecast | null>(null)
+  const [nlqInput, setNlqInput] = useState("")
+  const [nlqResult, setNlqResult] = useState<NLQueryResult | null>(null)
+  const [nlqLoading, setNlqLoading] = useState(false)
+  const [activeInsightTab, setActiveInsightTab] = useState("anomalies")
   const { toast } = useToast()
 
   // Load business data from database
@@ -159,6 +175,7 @@ export default function AIInsightsPage() {
           expenseRatio,
           incomeEntries,
           spendingEntries,
+          loanEntries,
           clients,
         })
 
@@ -170,6 +187,24 @@ export default function AIInsightsPage() {
         setClientAnalysis(clientAnalysisResults)
         setBusinessTrends(businessTrendsResults)
         setRiskAnalysis(riskAnalysisResults)
+
+        // Run new analytics features
+        try {
+          const alerts = runFullAnomalyDetection(incomeEntries, spendingEntries)
+          setAnomalyAlerts(alerts)
+        } catch (e) { console.error('Anomaly detection error:', e) }
+
+        try {
+          const suggestions = generateExpenseSuggestions(spendingEntries, incomeEntries)
+          setExpenseSuggestions(suggestions)
+          const categories = analyzeSpendingCategories(spendingEntries)
+          setCategoryBreakdown(categories)
+        } catch (e) { console.error('Expense suggestions error:', e) }
+
+        try {
+          const forecast = generateRevenueForecast(incomeEntries, 6)
+          setRevenueForecast(forecast)
+        } catch (e) { console.error('Revenue forecast error:', e) }
 
         // Add welcome message - always create fresh with current data
         const savedMessages = localStorage.getItem("aiMessages")
@@ -535,6 +570,71 @@ I can help you with comprehensive business analysis:
 Ask me anything about your business - I have access to advanced analytics including client behavior patterns, risk assessments, and predictive insights!`
   }
 
+  // Natural Language Query handler
+  const handleNLQuery = () => {
+    if (!nlqInput.trim() || !businessData) return
+    setNlqLoading(true)
+
+    try {
+      const parsed = parseNaturalLanguageQuery(nlqInput)
+      if (!parsed) {
+        setNlqResult({
+          query: { intent: 'unknown', collection: 'all', filters: [], description: nlqInput },
+          results: [],
+          summary: 'Could not understand the query. Try rephrasing or use one of the example queries.',
+          visualization: 'list'
+        })
+        setNlqLoading(false)
+        return
+      }
+
+      // Handle special client inactivity queries
+      if ((parsed as any)._inactiveDays) {
+        const result = processClientInactivityQuery(
+          parsed,
+          businessData.clients,
+          businessData.incomeEntries,
+          (parsed as any)._inactiveDays
+        )
+        setNlqResult(result)
+
+        // Also inject result into chat
+        const chatResponse = formatNLQueryResponse(result)
+        const aiMsg: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: chatResponse,
+          timestamp: new Date().toISOString()
+        }
+        setMessages(prev => [...prev, aiMsg])
+      } else {
+        const result = executeLocalQuery(parsed, {
+          incomeEntries: businessData.incomeEntries,
+          spendingEntries: businessData.spendingEntries,
+          loanEntries: businessData.loanEntries || [],
+          clients: businessData.clients,
+          todos: []
+        })
+        setNlqResult(result)
+
+        // Also inject into chat
+        const chatResponse = formatNLQueryResponse(result)
+        const aiMsg: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: chatResponse,
+          timestamp: new Date().toISOString()
+        }
+        setMessages(prev => [...prev, aiMsg])
+      }
+    } catch (e) {
+      console.error('NLQ error:', e)
+      toast({ title: 'Query Error', description: 'Failed to parse query. Try rephrasing.', variant: 'destructive' })
+    } finally {
+      setNlqLoading(false)
+    }
+  }
+
   const sendMessage = async () => {
     if (!inputMessage.trim()) return
 
@@ -870,6 +970,376 @@ Ask me anything about your business - I have access to advanced analytics includ
           </Card>
         )}
 
+        {/* ===== NEW AI FEATURES SECTION ===== */}
+        {!isDataLoading && businessData && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+                AI-Powered Analytics
+              </CardTitle>
+              <CardDescription>Anomaly detection, expense insights, natural language queries, and revenue forecasting</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={activeInsightTab} onValueChange={setActiveInsightTab} className="space-y-4">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="anomalies" className="text-xs sm:text-sm">
+                    <Activity className="h-4 w-4 mr-1 hidden sm:inline" />
+                    Anomalies {anomalyAlerts.length > 0 && <Badge variant="destructive" className="ml-1 text-[10px] px-1">{anomalyAlerts.length}</Badge>}
+                  </TabsTrigger>
+                  <TabsTrigger value="expenses" className="text-xs sm:text-sm">
+                    <DollarSign className="h-4 w-4 mr-1 hidden sm:inline" />
+                    Expenses
+                  </TabsTrigger>
+                  <TabsTrigger value="nlq" className="text-xs sm:text-sm">
+                    <Search className="h-4 w-4 mr-1 hidden sm:inline" />
+                    Ask Data
+                  </TabsTrigger>
+                  <TabsTrigger value="forecast" className="text-xs sm:text-sm">
+                    <TrendingUp className="h-4 w-4 mr-1 hidden sm:inline" />
+                    Forecast
+                  </TabsTrigger>
+                </TabsList>
+
+                {/* Tab 1: Anomaly Detection */}
+                <TabsContent value="anomalies" className="space-y-4">
+                  {anomalyAlerts.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Shield className="h-10 w-10 mx-auto mb-3 text-green-500" />
+                      <p className="font-medium">No anomalies detected</p>
+                      <p className="text-sm mt-1">Your spending and income patterns look normal. We&apos;ll alert you when something unusual occurs.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {anomalyAlerts.sort((a, b) => {
+                        const sev = { critical: 0, high: 1, medium: 2, low: 3 }
+                        return (sev[a.severity] || 3) - (sev[b.severity] || 3)
+                      }).map((alert) => (
+                        <motion.div
+                          key={alert.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`p-4 rounded-lg border-l-4 ${
+                            alert.severity === 'critical' ? 'border-l-red-600 bg-red-50 dark:bg-red-950/30' :
+                            alert.severity === 'high' ? 'border-l-orange-500 bg-orange-50 dark:bg-orange-950/30' :
+                            alert.severity === 'medium' ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/30' :
+                            'border-l-blue-400 bg-blue-50 dark:bg-blue-950/30'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-sm">{alert.title}</span>
+                                <Badge variant={alert.severity === 'critical' || alert.severity === 'high' ? 'destructive' : 'secondary'} className="text-[10px]">
+                                  {alert.severity}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground">{alert.description}</p>
+                              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                                <span>Expected: ${alert.expectedValue.toLocaleString()}</span>
+                                <span>Actual: ${alert.currentValue.toLocaleString()}</span>
+                                <span className={alert.deviationPercent > 0 ? 'text-red-600' : 'text-green-600'}>
+                                  {alert.deviationPercent > 0 ? '+' : ''}{alert.deviationPercent.toFixed(1)}%
+                                </span>
+                              </div>
+                              <p className="text-xs mt-2 text-blue-700 dark:text-blue-400">💡 {alert.recommendation}</p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Tab 2: AI Expense Suggestions */}
+                <TabsContent value="expenses" className="space-y-4">
+                  {expenseSuggestions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <DollarSign className="h-10 w-10 mx-auto mb-3 text-green-500" />
+                      <p className="font-medium">No expense suggestions yet</p>
+                      <p className="text-sm mt-1">Add more spending entries across different months to see AI-powered expense analysis.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {expenseSuggestions.map((suggestion) => (
+                        <motion.div
+                          key={suggestion.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className={`p-4 rounded-lg border ${
+                            suggestion.severity === 'critical' ? 'border-red-300 bg-red-50 dark:bg-red-950/20' :
+                            suggestion.severity === 'warning' ? 'border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20' :
+                            'border-gray-200 bg-gray-50 dark:bg-gray-800/50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 rounded-full p-1.5 ${
+                              suggestion.type === 'increase' ? 'bg-red-100 text-red-600' :
+                              suggestion.type === 'decrease' ? 'bg-green-100 text-green-600' :
+                              'bg-blue-100 text-blue-600'
+                            }`}>
+                              {suggestion.type === 'increase' ? <ArrowUpRight className="h-4 w-4" /> :
+                               suggestion.type === 'decrease' ? <ArrowDownRight className="h-4 w-4" /> :
+                               <Lightbulb className="h-4 w-4" />}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-semibold text-sm">{suggestion.title}</div>
+                              <p className="text-sm text-muted-foreground mt-1">{suggestion.explanation}</p>
+                              <div className="flex items-center gap-3 mt-2 text-xs">
+                                <span>Previous: ${suggestion.previousAmount.toLocaleString()}</span>
+                                <span>Current: ${suggestion.currentAmount.toLocaleString()}</span>
+                                <Badge variant={suggestion.changePercent > 0 ? 'destructive' : 'default'} className="text-[10px]">
+                                  {suggestion.changePercent > 0 ? '+' : ''}{suggestion.changePercent.toFixed(1)}%
+                                </Badge>
+                              </div>
+                              {suggestion.actionItems.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {suggestion.actionItems.slice(0, 3).map((action, i) => (
+                                    <p key={i} className="text-xs text-blue-700 dark:text-blue-400">• {action}</p>
+                                  ))}
+                                </div>
+                              )}
+                              {suggestion.potentialSavings && suggestion.potentialSavings > 0 && (
+                                <p className="text-xs mt-1 text-green-700 dark:text-green-400 font-medium">
+                                  💰 Potential savings: ${suggestion.potentialSavings.toLocaleString()}/mo
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Category breakdown */}
+                  {categoryBreakdown.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-medium mb-3 text-sm">Spending by Category</h4>
+                      <div className="space-y-2">
+                        {categoryBreakdown.slice(0, 8).map((cat) => (
+                          <div key={cat.category} className="flex items-center gap-3">
+                            <div className="w-28 text-sm font-medium truncate">{cat.category}</div>
+                            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500"
+                                style={{ width: `${Math.min(cat.percentOfTotal, 100)}%` }}
+                              />
+                            </div>
+                            <div className="w-16 text-right text-sm">{cat.percentOfTotal.toFixed(1)}%</div>
+                            <div className="w-24 text-right text-sm font-medium">${cat.total.toLocaleString()}</div>
+                            <Badge variant={cat.trend === 'increasing' ? 'destructive' : cat.trend === 'decreasing' ? 'default' : 'secondary'} className="text-[10px] w-20 justify-center">
+                              {cat.trend === 'increasing' ? '↑' : cat.trend === 'decreasing' ? '↓' : '→'} {cat.trend}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Tab 3: Natural Language Queries */}
+                <TabsContent value="nlq" className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g., 'Show me all clients who haven't paid in 60 days'"
+                      value={nlqInput}
+                      onChange={(e) => setNlqInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleNLQuery() }}
+                      className="flex-1"
+                    />
+                    <Button onClick={handleNLQuery} disabled={nlqLoading || !nlqInput.trim()}>
+                      {nlqLoading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Example queries */}
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Clients who haven't paid in 60 days",
+                      "Top 5 clients by revenue",
+                      "Total spending last 3 months",
+                      "Largest 10 expenses",
+                      "Unpaid loans",
+                      "How many clients",
+                      "Average income",
+                      "Spending on marketing",
+                    ].map((example) => (
+                      <Button
+                        key={example}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => {
+                          setNlqInput(example)
+                          setTimeout(() => handleNLQuery(), 50)
+                        }}
+                      >
+                        {example}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* NLQ Results */}
+                  {nlqResult && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <Search className="h-4 w-4" />
+                            {nlqResult.query.description}
+                          </CardTitle>
+                          <CardDescription>{nlqResult.summary}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {nlqResult.results.length > 0 ? (
+                            <div className="overflow-x-auto max-h-64">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b">
+                                    {Object.keys(nlqResult.results[0])
+                                      .filter(k => !k.startsWith('_') && k !== 'userId' && k !== 'encrypted' && k !== '__encrypted')
+                                      .slice(0, 5)
+                                      .map(key => (
+                                        <th key={key} className="text-left p-2 font-medium text-xs uppercase">{key}</th>
+                                      ))
+                                    }
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {nlqResult.results.slice(0, 10).map((row, i) => (
+                                    <tr key={i} className="border-b last:border-0">
+                                      {Object.entries(row)
+                                        .filter(([k]) => !k.startsWith('_') && k !== 'userId' && k !== 'encrypted' && k !== '__encrypted')
+                                        .slice(0, 5)
+                                        .map(([key, val]) => (
+                                          <td key={key} className="p-2 text-xs">
+                                            {typeof val === 'number' ? (key.includes('mount') || key.includes('evenue') ? `$${val.toLocaleString()}` : val.toLocaleString()) :
+                                             typeof val === 'boolean' ? (val ? '✅' : '❌') :
+                                             String(val || '-').slice(0, 40)}
+                                          </td>
+                                        ))
+                                      }
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {nlqResult.results.length > 10 && (
+                                <p className="text-xs text-muted-foreground mt-2 text-center">
+                                  Showing 10 of {nlqResult.results.length} results
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">No matching results found.</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+                </TabsContent>
+
+                {/* Tab 4: Predictive Revenue Forecast */}
+                <TabsContent value="forecast" className="space-y-4">
+                  {!revenueForecast || revenueForecast.forecast.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <TrendingUp className="h-10 w-10 mx-auto mb-3 text-blue-500" />
+                      <p className="font-medium">Insufficient data for forecasting</p>
+                      <p className="text-sm mt-1">Need at least 3 months of income history to generate predictions. Keep adding income entries!</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Forecast Summary Metrics */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="text-center p-3 border rounded-lg">
+                          <div className="text-lg font-bold">
+                            {revenueForecast.trend === 'growing' ? '📈' : revenueForecast.trend === 'declining' ? '📉' : revenueForecast.trend === 'volatile' ? '📊' : '➡️'}
+                          </div>
+                          <div className="text-sm font-medium capitalize">{revenueForecast.trend}</div>
+                          <div className="text-xs text-muted-foreground">Revenue Trend</div>
+                        </div>
+                        <div className="text-center p-3 border rounded-lg">
+                          <div className="text-lg font-bold text-green-600">${revenueForecast.metrics.averageMonthlyRevenue.toLocaleString()}</div>
+                          <div className="text-xs text-muted-foreground">Avg Monthly Revenue</div>
+                        </div>
+                        <div className="text-center p-3 border rounded-lg">
+                          <div className="text-lg font-bold text-blue-600">${revenueForecast.metrics.projectedAnnualRevenue.toLocaleString()}</div>
+                          <div className="text-xs text-muted-foreground">Projected Annual</div>
+                        </div>
+                        <div className="text-center p-3 border rounded-lg">
+                          <div className={`text-lg font-bold ${revenueForecast.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {revenueForecast.growthRate >= 0 ? '+' : ''}{revenueForecast.growthRate.toFixed(1)}%
+                          </div>
+                          <div className="text-xs text-muted-foreground">Monthly Growth</div>
+                        </div>
+                      </div>
+
+                      {/* Forecast Chart */}
+                      <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={[
+                            ...revenueForecast.historical.map(h => ({ date: h.date, actual: h.amount })),
+                            ...revenueForecast.forecast.map(f => ({ date: f.date, predicted: f.predicted, lower: f.lowerBound, upper: f.upperBound }))
+                          ]}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, '']} />
+                            <Legend />
+                            <Area type="monotone" dataKey="upper" stroke="none" fill="#93c5fd" fillOpacity={0.2} name="Upper Bound" />
+                            <Area type="monotone" dataKey="lower" stroke="none" fill="#93c5fd" fillOpacity={0.2} name="Lower Bound" />
+                            <Line type="monotone" dataKey="actual" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} name="Actual Revenue" />
+                            <Line type="monotone" dataKey="predicted" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} name="Predicted" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Forecast Details */}
+                      {revenueForecast.seasonalPattern && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <div className="text-sm font-medium text-blue-800 dark:text-blue-300">🔄 Seasonal Pattern Detected</div>
+                          <div className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                            Best month: <strong>{revenueForecast.metrics.bestMonth}</strong> • Weakest: <strong>{revenueForecast.metrics.worstMonth}</strong>
+                          </div>
+                        </div>
+                      )}
+
+                      {revenueForecast.metrics.volatility > 0.3 && (
+                        <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                          <div className="text-sm font-medium text-yellow-800 dark:text-yellow-300">⚠️ High Revenue Volatility</div>
+                          <div className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">
+                            Your revenue fluctuates significantly ({(revenueForecast.metrics.volatility * 100).toFixed(0)}% CV). Forecast confidence is lower. Consider diversifying revenue sources.
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Monthly Forecast Table */}
+                      <div>
+                        <h4 className="font-medium mb-2 text-sm">Monthly Forecast</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {revenueForecast.forecast.map((f) => (
+                            <div key={f.date} className="p-2 border rounded text-center">
+                              <div className="text-xs text-muted-foreground">{f.date}</div>
+                              <div className="font-bold text-sm">${f.predicted.toLocaleString()}</div>
+                              <div className="text-[10px] text-muted-foreground">
+                                ${f.lowerBound.toLocaleString()} – ${f.upperBound.toLocaleString()}
+                              </div>
+                              <Badge variant="secondary" className="text-[10px] mt-1">{Math.round(f.confidence * 100)}% conf</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Generate Advanced Report Button */}
         {!isDataLoading && businessData && clientAnalysis.length > 0 && (
           <Card>
@@ -919,9 +1389,9 @@ Ask me anything about your business - I have access to advanced analytics includ
                   "Show me my top performing clients and their trends",
                   "What's my client concentration risk?",
                   "Generate an advanced business analytics report",
-                  "Which clients should I focus on for retention?",
-                  "How dependent am I on my biggest client?",
-                  "What trends do you see in my revenue?",
+                  "What anomalies have you detected in my spending?",
+                  "Why did my expenses increase this month?",
+                  "What's my predicted revenue for next quarter?",
                   "Analyze my business risks and recommendations"
                 ].map((question, index) => (
                   <Button

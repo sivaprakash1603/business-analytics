@@ -11,13 +11,19 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle, AlertTriangle, Activity, Download } from "lucide-react"
 import { RealTimeDataProvider } from "@/components/realtime-data-provider"
 import { MagazineCard } from "@/components/magazine-card"
 import { DownloadReportDialog } from "@/components/download-report-dialog"
 import { InteractiveChart } from "@/components/interactive-chart"
 import { ComparativeAnalysis } from "@/components/comparative-analysis"
 import { CustomDashboardBuilder } from "@/components/custom-dashboard-builder"
+import { GoalTracking } from "@/components/goal-tracking"
+import { ProfitLossStatement } from "@/components/profit-loss-statement"
+import { CashFlowForecastView } from "@/components/cash-flow-forecast"
+import { DashboardSharing } from "@/components/dashboard-sharing"
+import { ScheduledReports } from "@/components/scheduled-reports"
+import { exportIncomeCSV, exportSpendingCSV, exportLoansCSV } from "@/lib/csv-export"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 
 
@@ -41,6 +47,7 @@ async function fetchClientsFromDB(userId: string) {
 }
 // FloatingElements removed on dashboard for performance
 import { usePassphrase } from "@/components/passphrase-context"
+import { runFullAnomalyDetection, type AnomalyAlert } from "@/lib/anomaly-detection"
 
 interface IncomeEntry {
   id: string
@@ -76,6 +83,7 @@ export default function DashboardPage() {
   // Add the news state and loading state at the top with other state declarations
   const [newsArticles, setNewsArticles] = useState<any[]>([])
   const [newsLoading, setNewsLoading] = useState(false)
+  const [anomalyAlerts, setAnomalyAlerts] = useState<AnomalyAlert[]>([])
 
   // State for income
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([])
@@ -264,6 +272,18 @@ export default function DashboardPage() {
       loadAllData()
     }
   }, [passphrase])
+
+  // Run anomaly detection when data changes
+  useEffect(() => {
+    if (incomeEntries.length > 0 || spendingEntries.length > 0) {
+      try {
+        const alerts = runFullAnomalyDetection(incomeEntries, spendingEntries)
+        setAnomalyAlerts(alerts)
+      } catch (e) {
+        console.error('Anomaly detection error:', e)
+      }
+    }
+  }, [incomeEntries, spendingEntries])
 
   // Add this function to fetch news
   const fetchNews = async () => {
@@ -880,16 +900,72 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Anomaly Alerts Banner */}
+              {anomalyAlerts.length > 0 && (
+                <Card className="border-l-4 border-l-orange-500 shadow-lg">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Activity className="h-5 w-5 text-orange-500" />
+                      <h3 className="font-semibold text-sm">
+                        {anomalyAlerts.filter(a => a.severity === 'critical' || a.severity === 'high').length > 0
+                          ? '⚠️ Anomalies Detected'
+                          : '📊 Spending & Income Insights'}
+                      </h3>
+                      <Badge variant="secondary" className="text-xs">{anomalyAlerts.length} alert{anomalyAlerts.length !== 1 ? 's' : ''}</Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {anomalyAlerts
+                        .sort((a, b) => {
+                          const sev = { critical: 0, high: 1, medium: 2, low: 3 }
+                          return (sev[a.severity] || 3) - (sev[b.severity] || 3)
+                        })
+                        .slice(0, 3)
+                        .map((alert) => (
+                          <div
+                            key={alert.id}
+                            className={`flex items-start gap-3 p-3 rounded-lg text-sm ${
+                              alert.severity === 'critical' ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300' :
+                              alert.severity === 'high' ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-800 dark:text-orange-300' :
+                              alert.severity === 'medium' ? 'bg-yellow-50 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-300' :
+                              'bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300'
+                            }`}
+                          >
+                            <AlertTriangle className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+                              alert.severity === 'critical' ? 'text-red-600' :
+                              alert.severity === 'high' ? 'text-orange-500' :
+                              'text-yellow-500'
+                            }`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-xs">{alert.title}</div>
+                              <div className="text-xs opacity-80 mt-0.5">{alert.description}</div>
+                            </div>
+                            <Badge variant={alert.severity === 'critical' || alert.severity === 'high' ? 'destructive' : 'secondary'} className="text-[10px] flex-shrink-0">
+                              {alert.deviationPercent > 0 ? '+' : ''}{alert.deviationPercent.toFixed(0)}%
+                            </Badge>
+                          </div>
+                        ))}
+                      {anomalyAlerts.length > 3 && (
+                        <a href="/ai-insights" className="block text-xs text-center text-blue-600 dark:text-blue-400 hover:underline mt-1">
+                          View all {anomalyAlerts.length} alerts in AI Insights →
+                        </a>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Main Content Tabs */}
               <div>
                 <Card className="glow-card backdrop-blur-sm shadow-2xl p-10 rounded-lg">
                   <CardContent className="p-6">
                     <Tabs defaultValue="analytics" className="space-y-6">
                       {/* Update the TabsList to include the news tab */}
-                      <TabsList className="grid w-full grid-cols-4 glow-card backdrop-blur shadow-lg">
+                      <TabsList className="grid w-full grid-cols-6 glow-card backdrop-blur shadow-lg">
                         <TabsTrigger value="analytics" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Analytics</TabsTrigger>
                         <TabsTrigger value="income" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Income</TabsTrigger>
                         <TabsTrigger value="spending" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Spending</TabsTrigger>
+                        <TabsTrigger value="financials" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Financials</TabsTrigger>
+                        <TabsTrigger value="tools" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Tools</TabsTrigger>
                         <TabsTrigger value="enhanced" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Enhanced</TabsTrigger>
                       </TabsList>
 
@@ -1042,8 +1118,18 @@ export default function DashboardPage() {
                         {/* Loans Card */}
                         <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20 ">
                           <CardHeader>
-                            <CardTitle className="text-gray-900 dark:text-white">Loan Management</CardTitle>
-                            <CardDescription className="text-gray-600 dark:text-gray-300">Track and manage your outstanding loans</CardDescription>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <CardTitle className="text-gray-900 dark:text-white">Loan Management</CardTitle>
+                                <CardDescription className="text-gray-600 dark:text-gray-300">Track and manage your outstanding loans</CardDescription>
+                              </div>
+                              {loanEntries.length > 0 && (
+                                <Button variant="outline" size="sm" onClick={() => exportLoansCSV(loanEntries)} className="text-xs">
+                                  <Download className="h-3 w-3 mr-1" />
+                                  Export CSV
+                                </Button>
+                              )}
+                            </div>
                           </CardHeader>
                           <CardContent className="space-y-4">
                             <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
@@ -1189,7 +1275,15 @@ export default function DashboardPage() {
                             </Card>
 
                             <div className="space-y-2">
-                              <h3 className="font-medium text-gray-900 dark:text-white">Recent Income Entries</h3>
+                              <div className="flex items-center justify-between">
+                                <h3 className="font-medium text-gray-900 dark:text-white">Recent Income Entries</h3>
+                                {incomeEntries.length > 0 && (
+                                  <Button variant="outline" size="sm" onClick={() => exportIncomeCSV(incomeEntries)} className="text-xs">
+                                    <Download className="h-3 w-3 mr-1" />
+                                    Export CSV
+                                  </Button>
+                                )}
+                              </div>
                               {incomeEntries
                                 .slice(-5)
                                 .reverse()
@@ -1259,7 +1353,15 @@ export default function DashboardPage() {
                             </Card>
 
                             <div className="space-y-2">
-                              <h3 className="font-medium text-gray-900 dark:text-white">Recent Spending Entries</h3>
+                              <div className="flex items-center justify-between">
+                                <h3 className="font-medium text-gray-900 dark:text-white">Recent Spending Entries</h3>
+                                {spendingEntries.length > 0 && (
+                                  <Button variant="outline" size="sm" onClick={() => exportSpendingCSV(spendingEntries)} className="text-xs">
+                                    <Download className="h-3 w-3 mr-1" />
+                                    Export CSV
+                                  </Button>
+                                )}
+                              </div>
                               {spendingEntries
                                 .slice(-5)
                                 .reverse()
@@ -1285,6 +1387,40 @@ export default function DashboardPage() {
                             </div>
                           </CardContent>
                         </Card>
+                      </TabsContent>
+
+                      {/* Financials Tab — P&L, Cash Flow, Goal Tracking */}
+                      <TabsContent value="financials" className="space-y-6">
+                        <ProfitLossStatement
+                          incomeEntries={incomeEntries}
+                          spendingEntries={spendingEntries}
+                          loanEntries={loanEntries}
+                        />
+
+                        <CashFlowForecastView
+                          incomeEntries={incomeEntries}
+                          spendingEntries={spendingEntries}
+                        />
+
+                        {user?.uid && (
+                          <GoalTracking
+                            userId={user.uid}
+                            totalIncome={totalIncome}
+                            totalSpending={totalSpending}
+                            totalProfit={totalProfit}
+                            clientCount={0}
+                          />
+                        )}
+                      </TabsContent>
+
+                      {/* Tools Tab — Sharing, Scheduled Reports */}
+                      <TabsContent value="tools" className="space-y-6">
+                        {user?.uid && (
+                          <>
+                            <DashboardSharing userId={user.uid} />
+                            <ScheduledReports userId={user.uid} userEmail={user.email || ""} />
+                          </>
+                        )}
                       </TabsContent>
 
                       {/* Enhanced Data Visualization Tab */}
