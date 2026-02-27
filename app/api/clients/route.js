@@ -39,7 +39,7 @@ export async function POST(req) {
     console.log('[API] Request body:', body);
     // Support both plaintext and encrypted payloads.
     // If payload is encrypted, expect: { __encrypted: true, encrypted: { ciphertext, iv, salt, ... }, createdAt, userId }
-    let name, company, description;
+    let name, company, description, email;
     const { createdAt, userId } = body;
 
     if (body.__encrypted) {
@@ -49,7 +49,7 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Missing encrypted payload or userId' }, { status: 400 });
       }
     } else {
-      ({ name, company, description } = body)
+      ({ name, company, description, email } = body)
       if (!name || !company || !userId) {
         console.error('[API] Missing required fields', { name, company, userId });
         return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -63,7 +63,7 @@ export async function POST(req) {
     const clientId = new ObjectId().toString();
     const doc = body.__encrypted
       ? { encrypted: body.encrypted, __encrypted: true, createdAt, userId, clientId }
-      : { name, company, description, createdAt, userId, clientId };
+      : { name, company, description, email: email || null, createdAt, userId, clientId };
     console.log('[API] Inserting doc:', doc);
     await clients.insertOne(doc);
     console.log('[API] Client inserted successfully');
