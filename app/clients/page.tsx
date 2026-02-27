@@ -94,16 +94,35 @@ function ClientsPage() {
           return client
         }))
 
+        // Decrypt income entries if encrypted
+        let decryptedIncome = incomeList
+        if (passphrase) {
+          decryptedIncome = await Promise.all(incomeList.map(async (entry: any) => {
+            if (entry.__encrypted && entry.encrypted) {
+              try {
+                const dec = await decryptPayload(entry.encrypted)
+                return { ...entry, ...dec, amount: Number(dec.amount) || 0 }
+              } catch {
+                return { ...entry, source: 'Encrypted', amount: 0 }
+              }
+            }
+            return entry
+          }))
+        } else {
+          decryptedIncome = incomeList.map((e: any) => e.__encrypted ? { ...e, source: 'Encrypted', amount: 0 } : e)
+        }
+
         // Calculate totalIncome for each client
         const clientsWithIncome = clientsDecrypted.map((client: any) => {
-          const clientIncome = incomeList
-            .filter((entry: any) => entry.clientId && client.clientId && entry.clientId === client.clientId)
-            .reduce((sum: number, entry: any) => sum + entry.amount, 0)
+          const cid = client.clientId || client._id?.toString()
+          const clientIncome = decryptedIncome
+            .filter((entry: any) => entry.clientId && cid && entry.clientId === cid)
+            .reduce((sum: number, entry: any) => sum + (Number(entry.amount) || 0), 0)
           return { ...client, totalIncome: clientIncome }
         })
         // Ensure each client has a stable id for React key & deletion: prefer Mongo _id, fallback to clientId
         setClients(clientsWithIncome.map((c: any) => ({ ...c, id: c._id?.toString() || c.clientId })))
-        setIncomeEntries(incomeList)
+        setIncomeEntries(decryptedIncome)
       } catch {
         setClients([])
         setIncomeEntries([])
@@ -176,11 +195,29 @@ function ClientsPage() {
         return client
       }))
 
+      // Decrypt income entries if encrypted
+      let decryptedIncome = incomeList
+      if (passphrase) {
+        decryptedIncome = await Promise.all(incomeList.map(async (entry: any) => {
+          if (entry.__encrypted && entry.encrypted) {
+            try {
+              const dec = await decryptPayload(entry.encrypted)
+              return { ...entry, ...dec, amount: Number(dec.amount) || 0 }
+            } catch {
+              return { ...entry, source: 'Encrypted', amount: 0 }
+            }
+          }
+          return entry
+        }))
+      } else {
+        decryptedIncome = incomeList.map((e: any) => e.__encrypted ? { ...e, source: 'Encrypted', amount: 0 } : e)
+      }
+
       const clientsWithIncome = clientsDecrypted.map((client: any) => {
         const cid = client.clientId || client._id?.toString()
-        const clientIncome = incomeList
+        const clientIncome = decryptedIncome
           .filter((entry: any) => entry.clientId && cid && entry.clientId === cid)
-          .reduce((sum: number, entry: any) => sum + entry.amount, 0)
+          .reduce((sum: number, entry: any) => sum + (Number(entry.amount) || 0), 0)
         return {
           ...client,
           totalIncome: clientIncome,
@@ -191,7 +228,7 @@ function ClientsPage() {
         }
       })
       setClients(clientsWithIncome.map((c: any) => ({ ...c, id: c._id?.toString() || c.clientId })))
-      setIncomeEntries(incomeList)
+      setIncomeEntries(decryptedIncome)
     } catch {
       setClients([])
       setIncomeEntries([])

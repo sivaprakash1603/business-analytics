@@ -24,6 +24,12 @@ import { CashFlowForecastView } from "@/components/cash-flow-forecast"
 import { DashboardSharing } from "@/components/dashboard-sharing"
 import { ScheduledReports } from "@/components/scheduled-reports"
 import { exportIncomeCSV, exportSpendingCSV, exportLoansCSV } from "@/lib/csv-export"
+import RecurringTransactions from "@/components/recurring-transactions"
+import InvoiceManager from "@/components/invoice-manager"
+import BudgetPlanner from "@/components/budget-planner"
+import CurrencyConverter from "@/components/currency-converter"
+import ExpenseCategoriesView from "@/components/expense-categories"
+import ReceiptUpload from "@/components/receipt-upload"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 
 
@@ -960,12 +966,13 @@ export default function DashboardPage() {
                   <CardContent className="p-6">
                     <Tabs defaultValue="analytics" className="space-y-6">
                       {/* Update the TabsList to include the news tab */}
-                      <TabsList className="grid w-full grid-cols-6 glow-card backdrop-blur shadow-lg">
+                      <TabsList className="grid w-full grid-cols-7 glow-card backdrop-blur shadow-lg">
                         <TabsTrigger value="analytics" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Analytics</TabsTrigger>
                         <TabsTrigger value="income" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Income</TabsTrigger>
                         <TabsTrigger value="spending" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Spending</TabsTrigger>
                         <TabsTrigger value="financials" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Financials</TabsTrigger>
                         <TabsTrigger value="tools" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Tools</TabsTrigger>
+                        <TabsTrigger value="invoicing" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Invoicing</TabsTrigger>
                         <TabsTrigger value="enhanced" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">Enhanced</TabsTrigger>
                       </TabsList>
 
@@ -1389,7 +1396,7 @@ export default function DashboardPage() {
                         </Card>
                       </TabsContent>
 
-                      {/* Financials Tab — P&L, Cash Flow, Goal Tracking */}
+                      {/* Financials Tab — P&L, Cash Flow, Goal Tracking, Budget, Expenses */}
                       <TabsContent value="financials" className="space-y-6">
                         <ProfitLossStatement
                           incomeEntries={incomeEntries}
@@ -1399,6 +1406,17 @@ export default function DashboardPage() {
 
                         <CashFlowForecastView
                           incomeEntries={incomeEntries}
+                          spendingEntries={spendingEntries}
+                        />
+
+                        {user?.uid && (
+                          <BudgetPlanner
+                            userId={user.uid}
+                            spendingEntries={spendingEntries}
+                          />
+                        )}
+
+                        <ExpenseCategoriesView
                           spendingEntries={spendingEntries}
                         />
 
@@ -1419,6 +1437,18 @@ export default function DashboardPage() {
                           <>
                             <DashboardSharing userId={user.uid} />
                             <ScheduledReports userId={user.uid} userEmail={user.email || ""} />
+                            <CurrencyConverter />
+                            <ReceiptUpload userId={user.uid} />
+                          </>
+                        )}
+                      </TabsContent>
+
+                      {/* Invoicing Tab — Invoice Manager & Recurring Transactions */}
+                      <TabsContent value="invoicing" className="space-y-6">
+                        {user?.uid && (
+                          <>
+                            <InvoiceManager userId={user.uid} companyName={companyName || "Your Company"} />
+                            <RecurringTransactions userId={user.uid} />
                           </>
                         )}
                       </TabsContent>
