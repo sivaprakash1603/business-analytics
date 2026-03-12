@@ -39,6 +39,13 @@ export function InteractiveChart({
   const [isRefreshing, setIsRefreshing] = useState(false)
   const { toast } = useToast()
 
+  // Pie data — computed at top level to avoid hooks-in-switch violation
+  const pieData = useMemo(() => data.map((item, index) => ({
+    name: item.period || item.name || `Item ${index + 1}`,
+    value: item.income || item.amount || 0,
+    fill: COLORS[index % COLORS.length]
+  })), [data])
+
   // Real-time data updates
   useEffect(() => {
     if (!enableRealTime) return
@@ -105,12 +112,6 @@ export function InteractiveChart({
         )
 
       case 'pie':
-        const pieData = useMemo(() => data.map((item, index) => ({
-          name: item.period,
-          value: item.income || item.amount || 0,
-          fill: COLORS[index % COLORS.length]
-        })), [data])
-
         return (
           <PieChart>
             <Pie

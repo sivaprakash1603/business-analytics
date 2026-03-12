@@ -126,6 +126,23 @@ export async function PUT(req) {
     }
 
     const db = await connectToDatabase()
+
+    // If marking as paid, auto-create an income entry from the invoice
+    if (updates.status === "paid") {
+      const invoice = await db.collection("invoices").findOne({ _id: new ObjectId(id), userId })
+      if (invoice && invoice.status !== "paid") {
+        await db.collection("income").insertOne({
+          source: `Invoice ${invoice.invoiceNumber} — ${invoice.clientName}`,
+          amount: invoice.total,
+          date: updates.paidDate || new Date().toISOString(),
+          userId,
+          clientId: invoice.clientId || null,
+          invoiceId: id,
+          createdAt: new Date().toISOString(),
+        })
+      }
+    }
+
     const result = await db.collection("invoices").updateOne(
       { _id: new ObjectId(id), userId },
       { $set: { ...updates, updatedAt: new Date().toISOString() } }

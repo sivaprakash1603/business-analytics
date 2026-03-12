@@ -30,11 +30,16 @@ export async function POST(req) {
       if (isNaN(numericAmount)) {
         return NextResponse.json({ error: "Amount must be a valid number" }, { status: 400 })
       }
+      const { category, description, paymentMethod, vendor } = body
       const result = await spendingCollection.insertOne({
         reason,
         amount: numericAmount,
         date,
         userId,
+        category: category || "General",
+        description: description || "",
+        paymentMethod: paymentMethod || "Other",
+        vendor: vendor || "",
         createdAt: new Date().toISOString(),
       })
       return NextResponse.json({ success: true, id: result.insertedId }, { status: 201 })

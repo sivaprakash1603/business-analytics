@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle, AlertTriangle, Activity, Download } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, Plus, Filter, Trash2, CheckCircle, AlertTriangle, Activity, Download, Calendar, FileText, Wallet, Building2, Tag, Receipt, Briefcase, Clock } from "lucide-react"
 import { RealTimeDataProvider } from "@/components/realtime-data-provider"
 import { MagazineCard } from "@/components/magazine-card"
 import { DownloadReportDialog } from "@/components/download-report-dialog"
@@ -30,7 +30,7 @@ import BudgetPlanner from "@/components/budget-planner"
 import CurrencyConverter from "@/components/currency-converter"
 import ExpenseCategoriesView from "@/components/expense-categories"
 import ReceiptUpload from "@/components/receipt-upload"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell } from "recharts"
 
 
 // Load clients from localStorage for suggestions
@@ -60,6 +60,9 @@ interface IncomeEntry {
   source: string
   amount: number
   date: string
+  category?: string
+  description?: string
+  paymentMethod?: string
 }
 
 interface SpendingEntry {
@@ -67,6 +70,10 @@ interface SpendingEntry {
   reason: string
   amount: number
   date: string
+  category?: string
+  description?: string
+  paymentMethod?: string
+  vendor?: string
 }
 
 interface LoanEntry {
@@ -95,6 +102,10 @@ export default function DashboardPage() {
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([])
   const [incomeSource, setIncomeSource] = useState("")
   const [incomeAmount, setIncomeAmount] = useState("")
+  const [incomeCategory, setIncomeCategory] = useState("Client Payment")
+  const [incomeDescription, setIncomeDescription] = useState("")
+  const [incomePaymentMethod, setIncomePaymentMethod] = useState("Bank Transfer")
+  const [incomeDate, setIncomeDate] = useState(new Date().toISOString().split("T")[0])
   const [clientSuggestions, setClientSuggestions] = useState<{ clientId: string; name: string; company: string }[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   // Update client suggestions when input changes
@@ -140,6 +151,11 @@ export default function DashboardPage() {
   const [spendingEntries, setSpendingEntries] = useState<SpendingEntry[]>([])
   const [spendingReason, setSpendingReason] = useState("")
   const [spendingAmount, setSpendingAmount] = useState("")
+  const [spendingCategory, setSpendingCategory] = useState("Operations")
+  const [spendingDescription, setSpendingDescription] = useState("")
+  const [spendingPaymentMethod, setSpendingPaymentMethod] = useState("Bank Transfer")
+  const [spendingVendor, setSpendingVendor] = useState("")
+  const [spendingDate, setSpendingDate] = useState(new Date().toISOString().split("T")[0])
 
   // State for loans
   const [loanEntries, setLoanEntries] = useState<LoanEntry[]>([])
@@ -154,15 +170,59 @@ export default function DashboardPage() {
 
   // Real-time data updates are handled by RealTimeDataProvider
 
-  // Comparative analysis data (mock data for demonstration)
-  const comparativeData = [
-    { period: "Jan", currentYear: 45000, previousYear: 42000, competitor1: 38000, competitor2: 41000, industry: 40000, target: 47000 },
-    { period: "Feb", currentYear: 52000, previousYear: 48000, competitor1: 42000, competitor2: 45000, industry: 44000, target: 51000 },
-    { period: "Mar", currentYear: 48000, previousYear: 46000, competitor1: 40000, competitor2: 43000, industry: 42000, target: 49000 },
-    { period: "Apr", currentYear: 55000, previousYear: 50000, competitor1: 45000, competitor2: 47000, industry: 46000, target: 53000 },
-    { period: "May", currentYear: 58000, previousYear: 53000, competitor1: 48000, competitor2: 50000, industry: 49000, target: 56000 },
-    { period: "Jun", currentYear: 62000, previousYear: 57000, competitor1: 52000, competitor2: 54000, industry: 53000, target: 60000 }
-  ]
+  // Comparative analysis data — built from real income/spending grouped by month
+  const comparativeData = useMemo(() => {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const previousYear = currentYear - 1
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // Group income by month/year
+    const monthlyIncome: Record<string, Record<number, number>> = {}
+    incomeEntries.forEach((entry) => {
+      const d = new Date(entry.date)
+      const m = months[d.getMonth()]
+      const y = d.getFullYear()
+      if (!monthlyIncome[m]) monthlyIncome[m] = {}
+      monthlyIncome[m][y] = (monthlyIncome[m][y] || 0) + (Number(entry.amount) || 0)
+    })
+
+    // Group spending by month/year
+    const monthlySpending: Record<string, Record<number, number>> = {}
+    spendingEntries.forEach((entry) => {
+      const d = new Date(entry.date)
+      const m = months[d.getMonth()]
+      const y = d.getFullYear()
+      if (!monthlySpending[m]) monthlySpending[m] = {}
+      monthlySpending[m][y] = (monthlySpending[m][y] || 0) + (Number(entry.amount) || 0)
+    })
+
+    // Build per-month rows: revenue = income, use profit (income - spending) for target line
+    return months
+      .filter((m) => {
+        // Only include months that have data in current or previous year
+        return (monthlyIncome[m]?.[currentYear] || monthlyIncome[m]?.[previousYear] || monthlySpending[m]?.[currentYear])
+      })
+      .map((m) => {
+        const curIncome = monthlyIncome[m]?.[currentYear] || 0
+        const prevIncome = monthlyIncome[m]?.[previousYear] || 0
+        const curSpending = monthlySpending[m]?.[currentYear] || 0
+        const prevSpending = monthlySpending[m]?.[previousYear] || 0
+        const curProfit = curIncome - curSpending
+        const prevProfit = prevIncome - prevSpending
+        // Target derived from previous year + 10% growth
+        const target = Math.round(prevIncome * 1.1) || Math.round(curIncome * 1.05)
+        return {
+          period: m,
+          currentYear: curIncome,
+          previousYear: prevIncome,
+          competitor1: curProfit,   // repurpose as "Profit (Current)"
+          competitor2: prevProfit,  // repurpose as "Profit (Previous)"
+          industry: Math.round((curIncome + prevIncome) / 2) || 0,
+          target,
+        }
+      })
+  }, [incomeEntries, spendingEntries])
 
 
   // Comprehensive data loading function
@@ -352,7 +412,7 @@ export default function DashboardPage() {
     if (!incomeSource || !incomeAmount) {
       toast({
         title: "Error",
-        description: "Please fill in all fields.",
+        description: "Please enter a source and amount.",
         variant: "destructive",
       })
       return
@@ -364,14 +424,19 @@ export default function DashboardPage() {
     )
     if (matchedClient) clientId = matchedClient.clientId
 
+    const entryDate = incomeDate ? new Date(incomeDate).toISOString() : new Date().toISOString()
+
     try {
       let body: any
       if (passphrase) {
         const encrypted = await encryptPayload({
           source: incomeSource,
           amount: Number.parseFloat(incomeAmount),
-          date: new Date().toISOString(),
+          date: entryDate,
           clientId,
+          category: incomeCategory,
+          description: incomeDescription,
+          paymentMethod: incomePaymentMethod,
         })
         body = {
           __encrypted: true,
@@ -382,9 +447,12 @@ export default function DashboardPage() {
         body = {
           source: incomeSource,
           amount: Number.parseFloat(incomeAmount),
-          date: new Date().toISOString(),
+          date: entryDate,
           clientId,
           userId: user?.uid,
+          category: incomeCategory,
+          description: incomeDescription,
+          paymentMethod: incomePaymentMethod,
         }
       }
       const res = await fetch("/api/income", {
@@ -402,11 +470,13 @@ export default function DashboardPage() {
         return
       }
       toast({
-        title: "Success",
-        description: "Income entry added successfully!",
+        title: "Income Recorded",
+        description: `$${Number.parseFloat(incomeAmount).toLocaleString()} from ${incomeSource} added successfully.`,
       })
       setIncomeSource("")
       setIncomeAmount("")
+      setIncomeDescription("")
+      setIncomeDate(new Date().toISOString().split("T")[0])
       // Reload all data to get updated income entries
       loadAllData()
     } catch (err) {
@@ -422,7 +492,7 @@ export default function DashboardPage() {
     if (!spendingReason || !spendingAmount) {
       toast({
         title: "Error",
-        description: "Please fill in all fields.",
+        description: "Please enter a reason and amount.",
         variant: "destructive",
       })
       return
@@ -436,6 +506,9 @@ export default function DashboardPage() {
       })
       return
     }
+
+    const entryDate = spendingDate ? new Date(spendingDate).toISOString() : new Date().toISOString()
+
     // Store spending entry in DB
     try {
       let body: any
@@ -443,7 +516,11 @@ export default function DashboardPage() {
         const encrypted = await encryptPayload({
           reason: spendingReason,
           amount: Number.parseFloat(spendingAmount),
-          date: new Date().toISOString(),
+          date: entryDate,
+          category: spendingCategory,
+          description: spendingDescription,
+          paymentMethod: spendingPaymentMethod,
+          vendor: spendingVendor,
         })
         body = {
           __encrypted: true,
@@ -454,8 +531,12 @@ export default function DashboardPage() {
         body = {
           reason: spendingReason,
           amount: Number.parseFloat(spendingAmount),
-          date: new Date().toISOString(),
+          date: entryDate,
           userId: user.uid,
+          category: spendingCategory,
+          description: spendingDescription,
+          paymentMethod: spendingPaymentMethod,
+          vendor: spendingVendor,
         }
       }
       const res = await fetch("/api/spending", {
@@ -473,11 +554,14 @@ export default function DashboardPage() {
         return
       }
       toast({
-        title: "Success",
-        description: "Spending entry added successfully!",
+        title: "Expense Recorded",
+        description: `$${Number.parseFloat(spendingAmount).toLocaleString()} for ${spendingReason} added successfully.`,
       })
       setSpendingReason("")
       setSpendingAmount("")
+      setSpendingDescription("")
+      setSpendingVendor("")
+      setSpendingDate(new Date().toISOString().split("T")[0])
       loadAllData()
     } catch {
       toast({
@@ -1216,184 +1300,756 @@ export default function DashboardPage() {
                       </TabsContent>
 
                       <TabsContent value="income" className="space-y-6">
-                        <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
-                          <CardHeader>
-                            <CardTitle className="text-gray-900 dark:text-white">Add Income</CardTitle>
-                            <CardDescription className="text-gray-600 dark:text-gray-300">Record new income from clients or other sources</CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
-                              <CardContent className="p-4">
-                                <div className="flex gap-4">
-                                  <div className="flex-1">
-                                    <Label htmlFor="incomeSource" className="text-gray-700 dark:text-gray-300">Source</Label>
-                                    <div className="relative">
-                                      <Input
-                                        id="incomeSource"
-                                        placeholder="Client name or income source"
-                                        value={incomeSource}
-                                        onChange={(e) => {
-                                          setIncomeSource(e.target.value)
-                                          setShowSuggestions(true)
-                                        }}
-                                        onFocus={() => setShowSuggestions(true)}
-                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                                        autoComplete="off"
-                                        className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                                      />
-                                      {showSuggestions && clientSuggestions.length > 0 && (
-                                        <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-auto">
-                                          {clientSuggestions.map((client) => (
-                                            <div
-                                              key={client.clientId}
-                                              className="px-3 py-2 cursor-pointer hover:bg-gray-100 text-gray-900 suggestion-item"
-                                              onMouseDown={() => {
-                                                setIncomeSource(client.name)
-                                                setShowSuggestions(false)
-                                              }}
-                                            >
-                                              <span className="font-medium text-gray-900">{client.name}</span>
-                                              <span className="ml-2 text-xs text-gray-500">{client.company}</span>
+                        {/* Income Summary Stats */}
+                        {(() => {
+                          const totalIncome = incomeEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                          const thisMonth = incomeEntries.filter(e => { const d = new Date(e.date); const n = new Date(); return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear() }).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                          const lastMonth = incomeEntries.filter(e => { const d = new Date(e.date); const n = new Date(); const lm = new Date(n.getFullYear(), n.getMonth() - 1, 1); return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear() }).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                          const growthPct = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1) : '0.0'
+                          const avgIncome = incomeEntries.length > 0 ? (totalIncome / incomeEntries.length) : 0
+                          const normalizeSource = (src: string) => { const m = src.match(/^Invoice\s+INV-[A-Z0-9-]+\s*[—–\-]\s*(.+)$/i); return m ? m[1].trim() : src }
+                          const topSource = incomeEntries.reduce((acc: Record<string, number>, e) => { const key = normalizeSource(e.source); acc[key] = (acc[key] || 0) + (Number(e.amount) || 0); return acc }, {} as Record<string, number>)
+                          const topSourceName = Object.keys(topSource).sort((a, b) => topSource[b] - topSource[a])[0] || '—'
+                          // Monthly chart data
+                          const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                          const incomeMonthlyCh = monthNames.map((m, i) => {
+                            const total = incomeEntries.filter(e => { const d = new Date(e.date); return d.getMonth() === i && d.getFullYear() === new Date().getFullYear() }).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                            return { month: m, amount: total }
+                          }).filter((_, i) => i <= new Date().getMonth())
+                          // Source breakdown for pie
+                          const sourceBreakdown = Object.entries(topSource).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value }))
+                          const pieColors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899']
+                          return (
+                            <>
+                              {/* KPI Cards */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <Card className="bg-gradient-to-br from-emerald-500 to-green-600 text-white border-0 shadow-lg">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-emerald-100 text-xs font-medium uppercase tracking-wider">Total Income</p>
+                                        <p className="text-2xl font-bold mt-1">${totalIncome.toLocaleString()}</p>
+                                        <p className="text-emerald-200 text-xs mt-1">{incomeEntries.length} transactions</p>
+                                      </div>
+                                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                                        <DollarSign className="h-6 w-6" />
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-0 shadow-lg">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-blue-100 text-xs font-medium uppercase tracking-wider">This Month</p>
+                                        <p className="text-2xl font-bold mt-1">${thisMonth.toLocaleString()}</p>
+                                        <div className="flex items-center gap-1 mt-1">
+                                          {Number(growthPct) >= 0 ? <TrendingUp className="h-3 w-3 text-green-300" /> : <TrendingDown className="h-3 w-3 text-red-300" />}
+                                          <span className={`text-xs ${Number(growthPct) >= 0 ? 'text-green-300' : 'text-red-300'}`}>{growthPct}% vs last month</span>
+                                        </div>
+                                      </div>
+                                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                                        <TrendingUp className="h-6 w-6" />
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                <Card className="bg-gradient-to-br from-violet-500 to-purple-600 text-white border-0 shadow-lg">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-violet-100 text-xs font-medium uppercase tracking-wider">Avg per Entry</p>
+                                        <p className="text-2xl font-bold mt-1">${avgIncome.toLocaleString(undefined, {maximumFractionDigits: 0})}</p>
+                                        <p className="text-violet-200 text-xs mt-1">Per transaction</p>
+                                      </div>
+                                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                                        <Activity className="h-6 w-6" />
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                <Card className="bg-gradient-to-br from-amber-500 to-orange-600 text-white border-0 shadow-lg">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-amber-100 text-xs font-medium uppercase tracking-wider">Top Source</p>
+                                        <p className="text-lg font-bold mt-1 truncate max-w-[140px]">{topSourceName}</p>
+                                        <p className="text-amber-200 text-xs mt-1">${(topSource[topSourceName] || 0).toLocaleString()}</p>
+                                      </div>
+                                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                                        <CheckCircle className="h-6 w-6" />
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+
+                              {/* Charts Row */}
+                              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <Card className="lg:col-span-2 shadow-lg border-0 bg-white dark:bg-gray-900">
+                                  <CardHeader className="pb-2">
+                                    <CardTitle className="text-base font-semibold text-gray-900 dark:text-white">Monthly Income Trend</CardTitle>
+                                    <CardDescription>Revenue by month this year</CardDescription>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <ResponsiveContainer width="100%" height={260}>
+                                      <AreaChart data={incomeMonthlyCh}>
+                                        <defs>
+                                          <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                          </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                                        <YAxis tick={{ fontSize: 12 }} />
+                                        <Tooltip formatter={(v: number) => ['$' + v.toLocaleString(), 'Income']} />
+                                        <Area type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.5} fill="url(#incomeGrad)" />
+                                      </AreaChart>
+                                    </ResponsiveContainer>
+                                  </CardContent>
+                                </Card>
+
+                                <Card className="shadow-lg border-0 bg-white dark:bg-gray-900">
+                                  <CardHeader className="pb-2">
+                                    <CardTitle className="text-base font-semibold text-gray-900 dark:text-white">Income by Source</CardTitle>
+                                    <CardDescription>Top revenue sources</CardDescription>
+                                  </CardHeader>
+                                  <CardContent>
+                                    {sourceBreakdown.length > 0 ? (
+                                      <>
+                                        <ResponsiveContainer width="100%" height={180}>
+                                          <PieChart>
+                                            <Pie data={sourceBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40} paddingAngle={3}>
+                                              {sourceBreakdown.map((_, idx) => <Cell key={idx} fill={pieColors[idx % pieColors.length]} />)}
+                                            </Pie>
+                                            <Tooltip formatter={(v: number) => '$' + v.toLocaleString()} />
+                                          </PieChart>
+                                        </ResponsiveContainer>
+                                        <div className="space-y-1.5 mt-2">
+                                          {sourceBreakdown.map((s, idx) => (
+                                            <div key={s.name} className="flex items-center justify-between text-xs">
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: pieColors[idx % pieColors.length] }} />
+                                                <span className="text-gray-700 dark:text-gray-300 truncate max-w-[120px]">{s.name}</span>
+                                              </div>
+                                              <span className="font-medium text-gray-900 dark:text-white">${s.value.toLocaleString()}</span>
                                             </div>
                                           ))}
                                         </div>
-                                      )}
+                                      </>
+                                    ) : (
+                                      <div className="text-center py-8 text-gray-400 text-sm">No data yet</div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              </div>
+
+                              {/* Add Income Form */}
+                              <Card className="shadow-lg border-0 bg-white dark:bg-gray-900">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-md">
+                                      <Plus className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div>
+                                      <CardTitle className="text-base text-gray-900 dark:text-white">Record Income</CardTitle>
+                                      <CardDescription>Add a new income entry with full details</CardDescription>
                                     </div>
                                   </div>
-                                  <div className="flex-1">
-                                    <Label htmlFor="incomeAmount" className="text-gray-700 dark:text-gray-300">Amount</Label>
-                                    <Input
-                                      id="incomeAmount"
-                                      type="number"
-                                      placeholder="Enter amount"
-                                      value={incomeAmount}
-                                      onChange={(e) => setIncomeAmount(e.target.value)}
-                                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                                    />
-                                  </div>
-                                  <div className="flex items-end">
-                                    <Button onClick={addIncome} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg">
-                                      <Plus className="h-4 w-4 mr-2" />
-                                      Add Income
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h3 className="font-medium text-gray-900 dark:text-white">Recent Income Entries</h3>
-                                {incomeEntries.length > 0 && (
-                                  <Button variant="outline" size="sm" onClick={() => exportIncomeCSV(incomeEntries)} className="text-xs">
-                                    <Download className="h-3 w-3 mr-1" />
-                                    Export CSV
-                                  </Button>
-                                )}
-                              </div>
-                              {incomeEntries
-                                .slice(-5)
-                                .reverse()
-                                .map((entry) => (
-                                  <div
-                                    key={entry.id}
-                                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                  >
+                                </CardHeader>
+                                <CardContent className="space-y-5">
+                                  {/* Row 1: Source + Amount + Date */}
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                      <div className="font-medium text-gray-900 dark:text-white">{entry.source}</div>
-                                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                                        {new Date(entry.date).toLocaleDateString()}
+                                      <Label htmlFor="incomeSource" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Building2 className="h-3 w-3" /> Source / Client
+                                      </Label>
+                                      <div className="relative">
+                                        <Input
+                                          id="incomeSource"
+                                          placeholder="Client name or income source"
+                                          value={incomeSource}
+                                          onChange={(e) => {
+                                            setIncomeSource(e.target.value)
+                                            setShowSuggestions(true)
+                                          }}
+                                          onFocus={() => setShowSuggestions(true)}
+                                          onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                                          autoComplete="off"
+                                          className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-emerald-500/20"
+                                        />
+                                        {showSuggestions && clientSuggestions.length > 0 && (
+                                          <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto">
+                                            {clientSuggestions.map((client) => (
+                                              <div
+                                                key={client.clientId}
+                                                className="px-4 py-2.5 cursor-pointer hover:bg-emerald-50 dark:hover:bg-gray-700 transition-colors suggestion-item"
+                                                onMouseDown={() => {
+                                                  setIncomeSource(client.name)
+                                                  setShowSuggestions(false)
+                                                }}
+                                              >
+                                                <span className="font-medium text-gray-900 dark:text-white">{client.name}</span>
+                                                <span className="ml-2 text-xs text-gray-400">{client.company}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
-                                    <div className="text-lg font-semibold text-green-600 dark:text-green-400">
-                                      +${entry.amount.toLocaleString()}
+                                    <div>
+                                      <Label htmlFor="incomeAmount" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <DollarSign className="h-3 w-3" /> Amount
+                                      </Label>
+                                      <div className="relative">
+                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                        <Input
+                                          id="incomeAmount"
+                                          type="number"
+                                          placeholder="0.00"
+                                          value={incomeAmount}
+                                          onChange={(e) => setIncomeAmount(e.target.value)}
+                                          className="h-11 pl-9 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-emerald-500/20"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <Label htmlFor="incomeDate" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Calendar className="h-3 w-3" /> Date
+                                      </Label>
+                                      <Input
+                                        id="incomeDate"
+                                        type="date"
+                                        value={incomeDate}
+                                        onChange={(e) => setIncomeDate(e.target.value)}
+                                        className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-emerald-500/20"
+                                      />
                                     </div>
                                   </div>
-                                ))}
-                              {incomeEntries.length === 0 && (
-                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">No income entries yet</div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
+
+                                  {/* Row 2: Category + Payment Method */}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Tag className="h-3 w-3" /> Category
+                                      </Label>
+                                      <Select value={incomeCategory} onValueChange={setIncomeCategory}>
+                                        <SelectTrigger className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                                          <SelectValue placeholder="Select category" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Client Payment">Client Payment</SelectItem>
+                                          <SelectItem value="Consulting">Consulting</SelectItem>
+                                          <SelectItem value="Freelance">Freelance</SelectItem>
+                                          <SelectItem value="Product Sales">Product Sales</SelectItem>
+                                          <SelectItem value="Service Revenue">Service Revenue</SelectItem>
+                                          <SelectItem value="Subscription">Subscription</SelectItem>
+                                          <SelectItem value="Commission">Commission</SelectItem>
+                                          <SelectItem value="Royalties">Royalties</SelectItem>
+                                          <SelectItem value="Investment">Investment</SelectItem>
+                                          <SelectItem value="Refund">Refund</SelectItem>
+                                          <SelectItem value="Other">Other</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Wallet className="h-3 w-3" /> Payment Method
+                                      </Label>
+                                      <Select value={incomePaymentMethod} onValueChange={setIncomePaymentMethod}>
+                                        <SelectTrigger className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                                          <SelectValue placeholder="Select method" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                          <SelectItem value="Credit Card">Credit Card</SelectItem>
+                                          <SelectItem value="PayPal">PayPal</SelectItem>
+                                          <SelectItem value="Stripe">Stripe</SelectItem>
+                                          <SelectItem value="Cash">Cash</SelectItem>
+                                          <SelectItem value="Check">Check</SelectItem>
+                                          <SelectItem value="Wire Transfer">Wire Transfer</SelectItem>
+                                          <SelectItem value="Crypto">Crypto</SelectItem>
+                                          <SelectItem value="Other">Other</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+
+                                  {/* Row 3: Description */}
+                                  <div>
+                                    <Label htmlFor="incomeDescription" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                      <FileText className="h-3 w-3" /> Description / Notes <span className="text-gray-400 font-normal normal-case">(optional)</span>
+                                    </Label>
+                                    <Input
+                                      id="incomeDescription"
+                                      placeholder="e.g. Monthly retainer for Q1, Project milestone payment..."
+                                      value={incomeDescription}
+                                      onChange={(e) => setIncomeDescription(e.target.value)}
+                                      className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                  </div>
+
+                                  {/* Submit */}
+                                  <div className="flex justify-end pt-2 border-t border-gray-100 dark:border-gray-800">
+                                    <Button onClick={addIncome} className="h-11 px-8 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-semibold shadow-md hover:shadow-lg transition-all">
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Record Income
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* Recent Entries Table */}
+                              <Card className="shadow-lg border-0 bg-white dark:bg-gray-900">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                                        <Activity className="h-5 w-5 text-white" />
+                                      </div>
+                                      <div>
+                                        <CardTitle className="text-base text-gray-900 dark:text-white">Recent Income</CardTitle>
+                                        <CardDescription>{incomeEntries.length} total entries</CardDescription>
+                                      </div>
+                                    </div>
+                                    {incomeEntries.length > 0 && (
+                                      <Button variant="outline" size="sm" onClick={() => exportIncomeCSV(incomeEntries)} className="text-xs gap-1.5 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                        <Download className="h-3.5 w-3.5" />
+                                        Export CSV
+                                      </Button>
+                                    )}
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  {incomeEntries.length > 0 ? (
+                                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                                      {incomeEntries
+                                        .slice(-8)
+                                        .reverse()
+                                        .map((entry, idx) => (
+                                          <div
+                                            key={entry.id}
+                                            className="flex items-start gap-4 py-4 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors -mx-2"
+                                          >
+                                            <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                              <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-2 mb-0.5">
+                                                <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">{entry.source}</span>
+                                                {entry.category && entry.category !== 'General' && (
+                                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0">{entry.category}</Badge>
+                                                )}
+                                              </div>
+                                              <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                                <span className="flex items-center gap-1">
+                                                  <Clock className="h-3 w-3" />
+                                                  {new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                </span>
+                                                {entry.paymentMethod && entry.paymentMethod !== 'Other' && (
+                                                  <span className="flex items-center gap-1">
+                                                    <Wallet className="h-3 w-3" />
+                                                    {entry.paymentMethod}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {entry.description && (
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">{entry.description}</p>
+                                              )}
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                              <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">+${Number(entry.amount).toLocaleString()}</div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-12">
+                                      <div className="h-16 w-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                                        <DollarSign className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+                                      </div>
+                                      <p className="text-gray-500 dark:text-gray-400 text-sm">No income entries yet</p>
+                                      <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">Add your first income entry above</p>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            </>
+                          )
+                        })()}
                       </TabsContent>
 
                       <TabsContent value="spending" className="space-y-6">
-                        <Card className="glow-card backdrop-blur shadow-lg border-white/20 dark:border-gray-700/20">
-                          <CardHeader>
-                            <CardTitle className="text-gray-900 dark:text-white">Add Spending</CardTitle>
-                            <CardDescription className="text-gray-600 dark:text-gray-300">Record business expenses and spending</CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <Card className="border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50">
-                              <CardContent className="p-4">
-                                <div className="flex gap-4">
-                                  <div className="flex-1">
-                                    <Label htmlFor="spendingReason" className="text-gray-700 dark:text-gray-300">Reason</Label>
-                                    <Input
-                                      id="spendingReason"
-                                      placeholder="Reason for spending"
-                                      value={spendingReason}
-                                      onChange={(e) => setSpendingReason(e.target.value)}
-                                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                                    />
-                                  </div>
-                                  <div className="flex-1">
-                                    <Label htmlFor="spendingAmount" className="text-gray-700 dark:text-gray-300">Amount</Label>
-                                    <Input
-                                      id="spendingAmount"
-                                      type="number"
-                                      placeholder="Enter amount"
-                                      value={spendingAmount}
-                                      onChange={(e) => setSpendingAmount(e.target.value)}
-                                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                                    />
-                                  </div>
-                                  <div className="flex items-end">
-                                    <Button onClick={addSpending} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold drop-shadow-lg">
-                                      <Plus className="h-4 w-4 mr-2" />
-                                      Add Spending
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h3 className="font-medium text-gray-900 dark:text-white">Recent Spending Entries</h3>
-                                {spendingEntries.length > 0 && (
-                                  <Button variant="outline" size="sm" onClick={() => exportSpendingCSV(spendingEntries)} className="text-xs">
-                                    <Download className="h-3 w-3 mr-1" />
-                                    Export CSV
-                                  </Button>
-                                )}
-                              </div>
-                              {spendingEntries
-                                .slice(-5)
-                                .reverse()
-                                .map((entry) => (
-                                  <div
-                                    key={entry.id}
-                                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg glow-card backdrop-blur shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                  >
-                                    <div>
-                                      <div className="font-medium text-gray-900 dark:text-white">{entry.reason}</div>
-                                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                                        {new Date(entry.date).toLocaleDateString()}
+                        {(() => {
+                          const totalSpending = spendingEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                          const thisMonthSpend = spendingEntries.filter(e => { const d = new Date(e.date); const n = new Date(); return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear() }).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                          const lastMonthSpend = spendingEntries.filter(e => { const d = new Date(e.date); const n = new Date(); const lm = new Date(n.getFullYear(), n.getMonth() - 1, 1); return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear() }).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                          const spendGrowth = lastMonthSpend > 0 ? ((thisMonthSpend - lastMonthSpend) / lastMonthSpend * 100).toFixed(1) : '0.0'
+                          const avgSpend = spendingEntries.length > 0 ? (totalSpending / spendingEntries.length) : 0
+                          const topReason = spendingEntries.reduce((acc: Record<string, number>, e) => { acc[e.reason] = (acc[e.reason] || 0) + (Number(e.amount) || 0); return acc }, {} as Record<string, number>)
+                          const topReasonName = Object.keys(topReason).sort((a, b) => topReason[b] - topReason[a])[0] || '—'
+                          const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                          const spendMonthlyCh = monthNames.map((m, i) => {
+                            const total = spendingEntries.filter(e => { const d = new Date(e.date); return d.getMonth() === i && d.getFullYear() === new Date().getFullYear() }).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                            return { month: m, amount: total }
+                          }).filter((_, i) => i <= new Date().getMonth())
+                          const reasonBreakdown = Object.entries(topReason).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value }))
+                          const pieColors = ['#ef4444','#f59e0b','#8b5cf6','#3b82f6','#ec4899','#14b8a6']
+                          return (
+                            <>
+                              {/* KPI Cards */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <Card className="bg-gradient-to-br from-red-500 to-rose-600 text-white border-0 shadow-lg">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-red-100 text-xs font-medium uppercase tracking-wider">Total Spending</p>
+                                        <p className="text-2xl font-bold mt-1">${totalSpending.toLocaleString()}</p>
+                                        <p className="text-red-200 text-xs mt-1">{spendingEntries.length} transactions</p>
+                                      </div>
+                                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                                        <CreditCard className="h-6 w-6" />
                                       </div>
                                     </div>
-                                    <div className="text-lg font-semibold text-red-600 dark:text-red-400">
-                                      -${entry.amount.toLocaleString()}
+                                  </CardContent>
+                                </Card>
+                                <Card className="bg-gradient-to-br from-orange-500 to-amber-600 text-white border-0 shadow-lg">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-orange-100 text-xs font-medium uppercase tracking-wider">This Month</p>
+                                        <p className="text-2xl font-bold mt-1">${thisMonthSpend.toLocaleString()}</p>
+                                        <div className="flex items-center gap-1 mt-1">
+                                          {Number(spendGrowth) <= 0 ? <TrendingDown className="h-3 w-3 text-green-300" /> : <TrendingUp className="h-3 w-3 text-red-300" />}
+                                          <span className={`text-xs ${Number(spendGrowth) <= 0 ? 'text-green-300' : 'text-red-300'}`}>{spendGrowth}% vs last month</span>
+                                        </div>
+                                      </div>
+                                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                                        <TrendingDown className="h-6 w-6" />
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                <Card className="bg-gradient-to-br from-purple-500 to-violet-600 text-white border-0 shadow-lg">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-purple-100 text-xs font-medium uppercase tracking-wider">Avg per Entry</p>
+                                        <p className="text-2xl font-bold mt-1">${avgSpend.toLocaleString(undefined, {maximumFractionDigits: 0})}</p>
+                                        <p className="text-purple-200 text-xs mt-1">Per transaction</p>
+                                      </div>
+                                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                                        <Activity className="h-6 w-6" />
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                <Card className="bg-gradient-to-br from-pink-500 to-fuchsia-600 text-white border-0 shadow-lg">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-pink-100 text-xs font-medium uppercase tracking-wider">Top Category</p>
+                                        <p className="text-lg font-bold mt-1 truncate max-w-[140px]">{topReasonName}</p>
+                                        <p className="text-pink-200 text-xs mt-1">${(topReason[topReasonName] || 0).toLocaleString()}</p>
+                                      </div>
+                                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                                        <AlertTriangle className="h-6 w-6" />
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+
+                              {/* Charts Row */}
+                              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <Card className="lg:col-span-2 shadow-lg border-0 bg-white dark:bg-gray-900">
+                                  <CardHeader className="pb-2">
+                                    <CardTitle className="text-base font-semibold text-gray-900 dark:text-white">Monthly Spending Trend</CardTitle>
+                                    <CardDescription>Expenses by month this year</CardDescription>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <ResponsiveContainer width="100%" height={260}>
+                                      <BarChart data={spendMonthlyCh}>
+                                        <defs>
+                                          <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.6} />
+                                          </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                                        <YAxis tick={{ fontSize: 12 }} />
+                                        <Tooltip formatter={(v: number) => ['$' + v.toLocaleString(), 'Spending']} />
+                                        <Bar dataKey="amount" fill="url(#spendGrad)" radius={[6, 6, 0, 0]} />
+                                      </BarChart>
+                                    </ResponsiveContainer>
+                                  </CardContent>
+                                </Card>
+
+                                <Card className="shadow-lg border-0 bg-white dark:bg-gray-900">
+                                  <CardHeader className="pb-2">
+                                    <CardTitle className="text-base font-semibold text-gray-900 dark:text-white">Spending Breakdown</CardTitle>
+                                    <CardDescription>Top expense categories</CardDescription>
+                                  </CardHeader>
+                                  <CardContent>
+                                    {reasonBreakdown.length > 0 ? (
+                                      <>
+                                        <ResponsiveContainer width="100%" height={180}>
+                                          <PieChart>
+                                            <Pie data={reasonBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40} paddingAngle={3}>
+                                              {reasonBreakdown.map((_, idx) => <Cell key={idx} fill={pieColors[idx % pieColors.length]} />)}
+                                            </Pie>
+                                            <Tooltip formatter={(v: number) => '$' + v.toLocaleString()} />
+                                          </PieChart>
+                                        </ResponsiveContainer>
+                                        <div className="space-y-1.5 mt-2">
+                                          {reasonBreakdown.map((s, idx) => (
+                                            <div key={s.name} className="flex items-center justify-between text-xs">
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: pieColors[idx % pieColors.length] }} />
+                                                <span className="text-gray-700 dark:text-gray-300 truncate max-w-[120px]">{s.name}</span>
+                                              </div>
+                                              <span className="font-medium text-gray-900 dark:text-white">${s.value.toLocaleString()}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="text-center py-8 text-gray-400 text-sm">No data yet</div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              </div>
+
+                              {/* Add Spending Form */}
+                              <Card className="shadow-lg border-0 bg-white dark:bg-gray-900">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-md">
+                                      <Receipt className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div>
+                                      <CardTitle className="text-base text-gray-900 dark:text-white">Record Expense</CardTitle>
+                                      <CardDescription>Log a business expense with full details</CardDescription>
                                     </div>
                                   </div>
-                                ))}
-                              {spendingEntries.length === 0 && (
-                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">No spending entries yet</div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
+                                </CardHeader>
+                                <CardContent className="space-y-5">
+                                  {/* Row 1: Reason + Amount + Date */}
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                      <Label htmlFor="spendingReason" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <FileText className="h-3 w-3" /> Expense Name
+                                      </Label>
+                                      <Input
+                                        id="spendingReason"
+                                        placeholder="e.g. Office Rent, Cloud Hosting"
+                                        value={spendingReason}
+                                        onChange={(e) => setSpendingReason(e.target.value)}
+                                        className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-red-500/20"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor="spendingAmount" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <DollarSign className="h-3 w-3" /> Amount
+                                      </Label>
+                                      <div className="relative">
+                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                        <Input
+                                          id="spendingAmount"
+                                          type="number"
+                                          placeholder="0.00"
+                                          value={spendingAmount}
+                                          onChange={(e) => setSpendingAmount(e.target.value)}
+                                          className="h-11 pl-9 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-red-500/20"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <Label htmlFor="spendingDate" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Calendar className="h-3 w-3" /> Date
+                                      </Label>
+                                      <Input
+                                        id="spendingDate"
+                                        type="date"
+                                        value={spendingDate}
+                                        onChange={(e) => setSpendingDate(e.target.value)}
+                                        className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-red-500/20"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Row 2: Category + Payment Method + Vendor */}
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                      <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Tag className="h-3 w-3" /> Category
+                                      </Label>
+                                      <Select value={spendingCategory} onValueChange={setSpendingCategory}>
+                                        <SelectTrigger className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                                          <SelectValue placeholder="Select category" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Operations">Operations</SelectItem>
+                                          <SelectItem value="Marketing">Marketing</SelectItem>
+                                          <SelectItem value="Software & SaaS">Software & SaaS</SelectItem>
+                                          <SelectItem value="Payroll">Payroll</SelectItem>
+                                          <SelectItem value="Office & Rent">Office & Rent</SelectItem>
+                                          <SelectItem value="Travel">Travel</SelectItem>
+                                          <SelectItem value="Equipment">Equipment</SelectItem>
+                                          <SelectItem value="Professional Services">Professional Services</SelectItem>
+                                          <SelectItem value="Utilities">Utilities</SelectItem>
+                                          <SelectItem value="Insurance">Insurance</SelectItem>
+                                          <SelectItem value="Taxes & Fees">Taxes & Fees</SelectItem>
+                                          <SelectItem value="Supplies">Supplies</SelectItem>
+                                          <SelectItem value="Other">Other</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Wallet className="h-3 w-3" /> Payment Method
+                                      </Label>
+                                      <Select value={spendingPaymentMethod} onValueChange={setSpendingPaymentMethod}>
+                                        <SelectTrigger className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                                          <SelectValue placeholder="Select method" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                          <SelectItem value="Credit Card">Credit Card</SelectItem>
+                                          <SelectItem value="Debit Card">Debit Card</SelectItem>
+                                          <SelectItem value="PayPal">PayPal</SelectItem>
+                                          <SelectItem value="Cash">Cash</SelectItem>
+                                          <SelectItem value="Check">Check</SelectItem>
+                                          <SelectItem value="Wire Transfer">Wire Transfer</SelectItem>
+                                          <SelectItem value="Corporate Card">Corporate Card</SelectItem>
+                                          <SelectItem value="Other">Other</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <Label htmlFor="spendingVendor" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Briefcase className="h-3 w-3" /> Vendor / Payee <span className="text-gray-400 font-normal normal-case">(optional)</span>
+                                      </Label>
+                                      <Input
+                                        id="spendingVendor"
+                                        placeholder="e.g. AWS, WeWork, Adobe"
+                                        value={spendingVendor}
+                                        onChange={(e) => setSpendingVendor(e.target.value)}
+                                        className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-red-500/20"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Row 3: Description */}
+                                  <div>
+                                    <Label htmlFor="spendingDescription" className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                      <FileText className="h-3 w-3" /> Description / Notes <span className="text-gray-400 font-normal normal-case">(optional)</span>
+                                    </Label>
+                                    <Input
+                                      id="spendingDescription"
+                                      placeholder="e.g. Annual subscription renewal, Team lunch for 8 people..."
+                                      value={spendingDescription}
+                                      onChange={(e) => setSpendingDescription(e.target.value)}
+                                      className="h-11 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-red-500/20"
+                                    />
+                                  </div>
+
+                                  {/* Submit */}
+                                  <div className="flex justify-end pt-2 border-t border-gray-100 dark:border-gray-800">
+                                    <Button onClick={addSpending} className="h-11 px-8 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-semibold shadow-md hover:shadow-lg transition-all">
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Record Expense
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* Recent Entries Table */}
+                              <Card className="shadow-lg border-0 bg-white dark:bg-gray-900">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-md">
+                                        <CreditCard className="h-5 w-5 text-white" />
+                                      </div>
+                                      <div>
+                                        <CardTitle className="text-base text-gray-900 dark:text-white">Recent Expenses</CardTitle>
+                                        <CardDescription>{spendingEntries.length} total entries</CardDescription>
+                                      </div>
+                                    </div>
+                                    {spendingEntries.length > 0 && (
+                                      <Button variant="outline" size="sm" onClick={() => exportSpendingCSV(spendingEntries)} className="text-xs gap-1.5 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                        <Download className="h-3.5 w-3.5" />
+                                        Export CSV
+                                      </Button>
+                                    )}
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  {spendingEntries.length > 0 ? (
+                                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                                      {spendingEntries
+                                        .slice(-8)
+                                        .reverse()
+                                        .map((entry) => (
+                                          <div
+                                            key={entry.id}
+                                            className="flex items-start gap-4 py-4 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors -mx-2"
+                                          >
+                                            <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                              <CreditCard className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-2 mb-0.5">
+                                                <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">{entry.reason}</span>
+                                                {entry.category && entry.category !== 'General' && (
+                                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-0">{entry.category}</Badge>
+                                                )}
+                                              </div>
+                                              <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                                <span className="flex items-center gap-1">
+                                                  <Clock className="h-3 w-3" />
+                                                  {new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                </span>
+                                                {entry.paymentMethod && entry.paymentMethod !== 'Other' && (
+                                                  <span className="flex items-center gap-1">
+                                                    <Wallet className="h-3 w-3" />
+                                                    {entry.paymentMethod}
+                                                  </span>
+                                                )}
+                                                {entry.vendor && (
+                                                  <span className="flex items-center gap-1">
+                                                    <Briefcase className="h-3 w-3" />
+                                                    {entry.vendor}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {entry.description && (
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">{entry.description}</p>
+                                              )}
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                              <div className="text-sm font-bold text-red-600 dark:text-red-400">-${Number(entry.amount).toLocaleString()}</div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-12">
+                                      <div className="h-16 w-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                                        <CreditCard className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+                                      </div>
+                                      <p className="text-gray-500 dark:text-gray-400 text-sm">No spending entries yet</p>
+                                      <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">Record your first business expense above</p>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            </>
+                          )
+                        })()}
                       </TabsContent>
 
                       {/* Financials Tab — P&L, Cash Flow, Goal Tracking, Budget, Expenses */}

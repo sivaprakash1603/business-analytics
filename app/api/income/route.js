@@ -23,7 +23,7 @@ export async function POST(req) {
       })
       return new Response(JSON.stringify({ success: true, id: result.insertedId }), { status: 201 })
     } else {
-      const { source, amount, date, clientId, userId } = body
+      const { source, amount, date, clientId, userId, category, description, paymentMethod } = body
       if (!source || amount === undefined || !date || !userId) {
         return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400 })
       }
@@ -33,6 +33,9 @@ export async function POST(req) {
         date,
         userId,
         clientId: clientId || null,
+        category: category || "General",
+        description: description || "",
+        paymentMethod: paymentMethod || "Other",
         createdAt: new Date().toISOString(),
       })
       return new Response(JSON.stringify({ success: true, id: result.insertedId }), { status: 201 })

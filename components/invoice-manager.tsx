@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { usePassphrase } from "@/components/passphrase-context"
 import { generateInvoicePDF, getCurrencySymbol } from "@/lib/invoice-generator"
 import {
   FileText,
@@ -53,6 +54,7 @@ interface Invoice {
 interface InvoiceManagerProps {
   userId: string
   companyName?: string
+  clients?: { clientId: string; name: string; company: string; email?: string }[]
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -63,12 +65,57 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
 }
 
-export default function InvoiceManager({ userId, companyName }: InvoiceManagerProps) {
+export default function InvoiceManager({ userId, companyName, clients: externalClients }: InvoiceManagerProps) {
   const { toast } = useToast()
+  const { passphrase, decryptPayload } = usePassphrase()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filterStatus, setFilterStatus] = useState("all")
+  const [availableClients, setAvailableClients] = useState<{ clientId: string; name: string; company: string; email?: string }[]>([])
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+
+  // Load clients for the picker (including encrypted ones)
+  useEffect(() => {
+    if (externalClients && externalClients.length > 0) {
+      setAvailableClients(externalClients)
+      return
+    }
+    // Fallback: fetch clients directly and decrypt encrypted ones
+    async function loadClients() {
+      try {
+        const res = await fetch(`/api/clients?userId=${userId}`)
+        const data = await res.json()
+        if (res.ok && data.clients) {
+          const decrypted = await Promise.all(
+            data.clients.map(async (c: any) => {
+              if (c.__encrypted && c.encrypted && passphrase) {
+                try {
+                  const dec = await decryptPayload(c.encrypted)
+                  return { ...c, ...dec }
+                } catch {
+                  return null // skip clients that fail to decrypt
+                }
+              }
+              if (c.__encrypted) return null // no passphrase, skip encrypted
+              return c
+            })
+          )
+          setAvailableClients(
+            decrypted
+              .filter(Boolean)
+              .map((c: any) => ({
+                clientId: c.clientId || c._id,
+                name: c.name || "Unknown",
+                company: c.company || "",
+                email: c.email || undefined,
+              }))
+          )
+        }
+      } catch { /* ignore */ }
+    }
+    loadClients()
+  }, [userId, externalClients, passphrase, decryptPayload])
 
   // Form state
   const [clientName, setClientName] = useState("")
@@ -134,6 +181,7 @@ export default function InvoiceManager({ userId, companyName }: InvoiceManagerPr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
+          clientId: selectedClientId || null,
           clientName,
           clientEmail,
           items,
@@ -158,6 +206,7 @@ export default function InvoiceManager({ userId, companyName }: InvoiceManagerPr
   const resetForm = () => {
     setClientName("")
     setClientEmail("")
+    setSelectedClientId(null)
     setDueDate("")
     setNotes("")
     setTaxRate("0")
@@ -310,8 +359,41 @@ export default function InvoiceManager({ userId, companyName }: InvoiceManagerPr
             <CardContent className="p-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Client Name *</Label>
-                  <Input placeholder="Client name" value={clientName} onChange={(e) => setClientName(e.target.value)} />
+                  <Label>Client *</Label>
+                  {availableClients.length > 0 ? (
+                    <Select
+                      value={selectedClientId || "_manual"}
+                      onValueChange={(val) => {
+                        if (val === "_manual") {
+                          setSelectedClientId(null)
+                          setClientName("")
+                          setClientEmail("")
+                          return
+                        }
+                        setSelectedClientId(val)
+                        const client = availableClients.find((c) => c.clientId === val)
+                        if (client) {
+                          setClientName(client.name)
+                          setClientEmail(client.email || "")
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select a client" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_manual">Enter manually...</SelectItem>
+                        {availableClients.map((c) => (
+                          <SelectItem key={c.clientId} value={c.clientId}>
+                            {c.name}{c.company ? ` — ${c.company}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input placeholder="Client name" value={clientName} onChange={(e) => setClientName(e.target.value)} />
+                  )}
+                  {(selectedClientId === null || !selectedClientId) && availableClients.length > 0 && (
+                    <Input placeholder="Client name" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" />
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Client Email</Label>

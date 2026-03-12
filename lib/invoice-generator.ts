@@ -1,5 +1,5 @@
 import jsPDF from "jspdf"
-import "jspdf-autotable"
+import autoTable from "jspdf-autotable"
 
 export interface InvoiceItem {
   description: string
@@ -70,7 +70,7 @@ export function generateInvoicePDF(invoice: InvoiceData): jsPDF {
     `${currencySymbol}${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
   ])
 
-  ;(doc as any).autoTable({
+  autoTable(doc, {
     startY: 85,
     head: [["Description", "Qty", "Unit Price", "Total"]],
     body: tableData,
@@ -94,7 +94,7 @@ export function generateInvoicePDF(invoice: InvoiceData): jsPDF {
   })
 
   // Totals
-  const finalY = (doc as any).lastAutoTable.finalY + 10
+  const finalY = ((doc as any).lastAutoTable?.finalY ?? 120) + 10
   doc.setFontSize(10)
   doc.text("Subtotal:", 130, finalY)
   doc.text(

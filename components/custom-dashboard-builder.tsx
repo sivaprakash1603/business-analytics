@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useCallback, Suspense } from 'react'
+import React, { useState, useCallback, useEffect, Suspense } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -63,6 +63,23 @@ export function CustomDashboardBuilder({
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const { toast } = useToast()
 
+  // Persist widgets to localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('custom-dashboard-widgets')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Restore saved widgets but refresh data from props
+          setWidgets(parsed.map((w: DashboardWidget) => ({
+            ...w,
+            data: w.type === 'chart' ? (availableData || []) : w.data,
+          })))
+        }
+      }
+    } catch { /* ignore */ }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const addWidget = useCallback((type: string) => {
     const newWidget: DashboardWidget = {
       id: `widget-${Date.now()}`,
@@ -105,6 +122,12 @@ export function CustomDashboardBuilder({
     if (onSave) {
       onSave(widgets)
     }
+
+    // Persist to localStorage (strip large data blobs to save space)
+    try {
+      const toSave = widgets.map(w => ({ ...w, data: undefined }))
+      localStorage.setItem('custom-dashboard-widgets', JSON.stringify(toSave))
+    } catch { /* ignore */ }
 
     toast({
       title: "Dashboard Saved",
@@ -376,33 +399,37 @@ export function CustomDashboardBuilder({
       )}
 
       {/* Dashboard Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Reorder.Group axis="y" values={widgets} onReorder={setWidgets}>
-          {widgets.map((widget) => (
-            <Reorder.Item key={widget.id} value={widget}>
-              <motion.div
-                layout
-                className={`relative ${isEditMode ? 'cursor-move' : ''}`}
-                onClick={() => isEditMode && setSelectedWidget(widget)}
-              >
-                {isEditMode && (
-                  <div className="absolute -top-2 -left-2 z-10 flex items-center gap-1">
-                    <div className="bg-blue-500 text-white p-1 rounded">
-                      <GripVertical className="h-4 w-4" />
-                    </div>
-                    {selectedWidget?.id === widget.id && (
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                        Selected
-                      </Badge>
-                    )}
+      <Reorder.Group
+        axis="y"
+        values={widgets}
+        onReorder={setWidgets}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        as="div"
+      >
+        {widgets.map((widget) => (
+          <Reorder.Item key={widget.id} value={widget} as="div">
+            <motion.div
+              layout
+              className={`relative ${isEditMode ? 'cursor-move ring-2 ring-blue-200 dark:ring-blue-800 rounded-lg' : ''}`}
+              onClick={() => isEditMode && setSelectedWidget(widget)}
+            >
+              {isEditMode && (
+                <div className="absolute -top-2 -left-2 z-10 flex items-center gap-1">
+                  <div className="bg-blue-500 text-white p-1 rounded">
+                    <GripVertical className="h-4 w-4" />
                   </div>
-                )}
-                {renderWidget(widget)}
-              </motion.div>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
-      </div>
+                  {selectedWidget?.id === widget.id && (
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                      Selected
+                    </Badge>
+                  )}
+                </div>
+              )}
+              {renderWidget(widget)}
+            </motion.div>
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
 
       {widgets.length === 0 && (
         <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-white/20 dark:border-gray-700/20 shadow-xl">
